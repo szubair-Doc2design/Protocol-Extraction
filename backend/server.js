@@ -4,28 +4,39 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const multer = require("multer");
+require("dotenv").config(); // Load .env (important for Render + local dev)
 
+// Models
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
 const InventoryDefaults = require("./models/InventoryDefaults");
 const DrugOrderingResupply = require("./models/DrugOrderingResupply");
 
+// Routes
 const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
 const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// Connect to MongoDB
-mongoose.connect("mongodb://127.0.0.1:27017/protocolDB", {
+// ✅ Connect to MongoDB (use environment variable on Render / local .env)
+mongoose.connect(process.env.MONGO_URI, {
   useNewUrlParser: true,
   useUnifiedTopology: true,
 });
+
 mongoose.connection.on("connected", () => console.log("✅ MongoDB connected"));
-mongoose.connection.on("error", (err) => console.error("MongoDB connection error:", err));
+mongoose.connection.on("error", (err) => console.error("❌ MongoDB connection error:", err));
 
 const upload = multer({ storage: multer.memoryStorage() });
+
+/* ------------------------------------ */
+/* Health Check (useful for Render)     */
+/* ------------------------------------ */
+app.get("/", (req, res) => {
+  res.send("✅ Backend is running");
+});
 
 /* ------------------------------------ */
 /* JSON Upload (Direct)                 */
