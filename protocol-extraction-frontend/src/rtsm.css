@@ -1,0 +1,145 @@
+/* === Global Page Layout === */
+.rtsm-page {
+  padding: 30px;
+  background: #f7f9fc;
+  font-family: "Segoe UI", Tahoma, sans-serif;
+}
+
+/* === Header Bar with Logo & Title === */
+.rtsm-header-bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.rtsm-header-left {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+.rtsm-logo {
+  height: 48px;
+  cursor: pointer;
+}
+.rtsm-header-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #1a365d;
+}
+
+/* === Section Wrappers === */
+.rtsm-section {
+  margin-bottom: 28px;
+  background: #fff;
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+/* === Section Header (BLUE BAR) === */
+.rtsm-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 16px;
+}
+.rtsm-section-header.blue-header {
+  background: linear-gradient(90deg, #173f73 0%, #1a73e8 100%);
+  color: #fff;
+}
+.rtsm-section-header .section-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* === Buttons === */
+.rtsm-btn {
+  background: #1a73e8;
+  border: none;
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 8px;
+}
+.rtsm-btn.small {
+  padding: 4px 10px;
+  font-size: 13px;
+}
+.rtsm-btn:hover {
+  background: #155fc0;
+}
+
+/* === Tables === */
+.rtsm-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.rtsm-table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #e6eef6;
+  vertical-align: top;
+  font-size: 15px;
+}
+
+/* === Inputs & Checkboxes === */
+.rtsm-table input[type="text"] {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #cdd4e0;
+  border-radius: 4px;
+}
+.rtsm-checkbox {
+  display: inline-flex;
+  align-items: center;
+  margin-right: 12px;
+  font-size: 15px;
+}
+.rtsm-checkbox input {
+  margin-right: 4px;
+}
+
+/* === Note Text === */
+.rtsm-note {
+  padding: 8px 16px;
+  font-size: 14px;
+  background: #f1f5fa;
+  color: #333;
+  border-bottom: 1px solid #e6eef6;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 46px;
+  height: 24px;
+  margin-right: 6px;
+}
+.switch input { display:none; }
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0; left: 0;
+  right: 0; bottom: 0;
+  background-color: #ccc;
+  transition: .4s;
+  border-radius: 24px;
+}
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 18px;
+  width: 18px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .4s;
+  border-radius: 50%;
+}
+input:checked + .slider {
+  background-color: #2196F3;
+}
+input:checked + .slider:before {
+  transform: translateX(22px);
+}
