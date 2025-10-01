@@ -1,0 +1,519 @@
+{
+  "Protocol Info": {
+    "Client Name": "Sanofi-Aventis Recherche & Développement",
+    "Most Recent Protocol Version Utilized to Generate Requirements": "Version 10 (07-SEP-2023)",
+    "Open Label": "Yes",
+    "Protocol": "EFC17360",
+    "Protocol Description": "A phase 3, multicenter, randomized, double-blind, placebo-controlled, parallel-group study with an open-label period and long-term extension to assess the efficacy and safety of rilzabrutinib in participants with warm autoimmune hemolytic anemia (wAIHA)",
+    "Pulse Version": null,
+    "Study Blind Type": "Double-blind"
+  },
+  "Schema": {
+    "Description": "The study design is represented in a diagram showing the different phases of the clinical trial. It includes a screening period, a double-blind period (PAP), an open-label period (OLP), and a long-term extension (LTE) period. Participants are randomized to receive either rilzabrutinib or placebo during the PAP. All participants receive rilzabrutinib during the OLP and LTE. The diagram also indicates follow-up periods after each phase.",
+    "Example": "For example, a participant starts with a 4-week screening, then enters a 24-week double-blind period where they might receive either rilzabrutinib or placebo. After this, they enter a 28-week open-label period where all receive rilzabrutinib, followed by a long-term extension if they meet certain criteria.",
+    "KeyElements": [
+      "Screening period: 4 weeks",
+      "Double-blind Period (PAP): Week 1 - Week 24",
+      "Open-Label Period (OLP): Week 24 - Week 52",
+      "Long-Term Extension Period (LTE): Week 52 - End of LTE",
+      "Randomization: 2:1 ratio of rilzabrutinib to placebo",
+      "Follow-up periods after each phase"
+    ],
+    "SchemaName": "Graphical study design",
+    "SchemaType": "Diagram",
+    "SectionReference": "1.2 SCHEMA"
+  },
+  "Treatment and Kit Types": [
+    { "KitType": "Investigational Medicinal Product Kit", "TreatmentArm": "Rilzabrutinib", "TreatmentName": "Rilzabrutinib" },
+    { "KitType": "Placebo Kit", "TreatmentArm": "Placebo", "TreatmentName": "Placebo" }
+  ],
+  "Rand Details": {
+    "Randomization": {
+      "AllocationRatio": "2:1",
+      "Example": "Participants are randomly assigned to either the rilzabrutinib group or the placebo group in a 2:1 ratio. For example, if there are 90 participants, 60 will receive rilzabrutinib and 30 will receive placebo.",
+      "Method": "centralized randomization via IRT"
+    },
+    "Stratification": [
+      { "Factor": "Prior rituximab use", "Levels": ["Yes", "No"] },
+      { "Factor": "Severity of anemia at baseline", "Levels": ["Hb <8 g/dL", "Hb ≥8 g/dL"] }
+    ]
+  },
+  "Dispensation Logic": 
+  [
+    { "KitType": null, "Quantity": null, "TreatmentArm": null, "VisitName": "Screening" },
+    { "KitType": "Rilzabrutinib Kit", "Quantity": "1 tablet BID", "TreatmentArm": "Arm A1", "VisitName": "Cycle 1 Day 1" },
+    { "KitType": "Placebo Kit", "Quantity": "1 tablet BID", "TreatmentArm": "Arm B", "VisitName": "Cycle 1 Day 1" }    ,
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 8"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 8"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 15"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 29"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 29"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 43"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 57"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 71"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 71"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 85"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 99"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 113"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 113"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 127"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 141"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 155"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 155"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 169"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 183"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 183"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 197"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 211"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 225"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 225"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 239"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 253"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 267"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 267"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 281"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 295"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 309"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 309"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 323"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 337"
+    },
+    {
+      "KitType": "Rilzabrutinib Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm A1",
+      "VisitName": "Cycle 1 Day 351"
+    },
+    {
+      "KitType": "Placebo Kit",
+      "Quantity": "1 tablet BID",
+      "TreatmentArm": "Arm B",
+      "VisitName": "Cycle 1 Day 351"
+    },
+    {
+      "KitType": null,
+      "Quantity": null,
+      "TreatmentArm": null,
+      "VisitName": "Cycle 1 Day 365"
+    }
+  ],
+  "Dosing Logic": [
+    { "DosingDetails": "400 mg BID", "KitType": "Rilzabrutinib", "Quantity": null, "TreatmentArm": "Arm A", "VisitName": "Day 1" },
+    { "DosingDetails": "0 mg BID", "KitType": "Placebo", "Quantity": null, "TreatmentArm": "Arm B", "VisitName": "Day 1" },
+    { "DosingDetails": "400 mg BID", "KitType": "Rilzabrutinib", "Quantity": null, "TreatmentArm": "All", "VisitName": "Week 24" },
+    { "DosingDetails": "400 mg BID", "KitType": "Rilzabrutinib", "Quantity": null, "TreatmentArm": "All", "VisitName": "Week 52" }
+  ],
+  "Titration Logic": { "Titration / Dose Modification": "No" },
+  "Visit Schedule": [
+    { "Visit": "Screening", "VisitWeek": "Week -4", "VisitType": "Screening", "VisitCalculatedFrom": "TBC-Client", "KitType": "TBC-Client" },
+    {
+      "Visit": "Day 1",
+      "VisitWeek": "Week 0",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "TBC-Client",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 8",
+      "VisitWeek": "Week 1",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 1 day from Day 1",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 15",
+      "VisitWeek": "Week 2",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 8",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 29",
+      "VisitWeek": "Week 4",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 15",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 43",
+      "VisitWeek": "Week 6",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 29",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 57",
+      "VisitWeek": "Week 8",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 43",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 71",
+      "VisitWeek": "Week 10",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 57",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 85",
+      "VisitWeek": "Week 12",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 71",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 99",
+      "VisitWeek": "Week 14",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 85",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 113",
+      "VisitWeek": "Week 16",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 99",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 127",
+      "VisitWeek": "Week 18",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 113",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 141",
+      "VisitWeek": "Week 20",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 127",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 155",
+      "VisitWeek": "Week 22",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 141",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 169",
+      "VisitWeek": "Week 24",
+      "VisitType": "Treatment",
+      "VisitCalculatedFrom": "± 3 days from Day 155",
+      "KitType": "Blinded Study Intervention Kit"
+    },
+    {
+      "Visit": "Follow-up",
+      "VisitWeek": "Week 26",
+      "VisitType": "Follow-up",
+      "VisitCalculatedFrom": "14 days after last IMP dose",
+      "KitType": "TBC-Client"
+    },
+    {
+      "Visit": "Day 183",
+      "VisitWeek": "Week 26",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 169",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 197",
+      "VisitWeek": "Week 28",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 183",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 211",
+      "VisitWeek": "Week 30",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 197",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 225",
+      "VisitWeek": "Week 32",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 211",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 239",
+      "VisitWeek": "Week 34",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 225",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 253",
+      "VisitWeek": "Week 36",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 239",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 267",
+      "VisitWeek": "Week 38",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 253",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 281",
+      "VisitWeek": "Week 40",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 267",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 295",
+      "VisitWeek": "Week 42",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 281",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 309",
+      "VisitWeek": "Week 44",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 295",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 323",
+      "VisitWeek": "Week 46",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 309",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 337",
+      "VisitWeek": "Week 48",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 323",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 351",
+      "VisitWeek": "Week 50",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 337",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Day 365",
+      "VisitWeek": "Week 52",
+      "VisitType": "Open-Label Period",
+      "VisitCalculatedFrom": "± 3 days from Day 351",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "End of Study",
+      "VisitWeek": "Week 54",
+      "VisitType": "Follow-up",
+      "VisitCalculatedFrom": "14 days post-last dose",
+      "KitType": "TBC-Client"
+    },
+    {
+      "Visit": "Long-Term Extension",
+      "VisitWeek": "Week 56 to Week 100",
+      "VisitType": "Long-Term Extension",
+      "VisitCalculatedFrom": "Clinic Visits every 28 days for the first 12 months",
+      "KitType": "Open-Label Study Intervention Kit"
+    },
+    {
+      "Visit": "Long-Term Extension",
+      "VisitWeek": "Week 112 onwards",
+      "VisitType": "Long-Term Extension",
+      "VisitCalculatedFrom": "Clinic Visits every 3 months after 12 months of LTE",
+      "KitType": "Open-Label Study Intervention Kit"
+    }
+  ],
+  "Cohort": {
+    "Cohorts": [
+      { "Cohort": "Double-blind Period (PAP)", "CohortType": "Phase 3" },
+      { "Cohort": "Open-Label Period (OLP)", "CohortType": "Open-label" },
+      { "Cohort": "Long-Term Extension (LTE)", "CohortType": "Long-term extension" }
+    ],
+    "TotalCohorts": 3
+  },
+  "Screen Failure & Rescreening logic": {
+    "NewScreeningNumber": "string or TBC-Client",
+    "ReRescreeningPolicy": "TBC-Client",
+    "RescreeningPolicy": "Rescreened participants should be assigned a new participant number for every screening/rescreening event. A participant may be rescreened upon approval of the Medical Monitor. In this situation, the rescreened participant should sign a new ICF if the rescreening exceeds 45 days from the previous ICF signature date.",
+    "ScreenFailureApplicable": "Yes",
+    "ScreenFailureReasons": ["string or TBC-Client"]
+  }
+
+}

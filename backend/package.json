@@ -1,0 +1,26 @@
+{
+  "name": "protocol-extraction-backend",
+  "version": "1.0.0",
+  "main": "server.js",
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/material": "^7.3.2",
+    "body-parser": "^2.2.0",
+    "chart.js": "^4.5.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "mongoose": "^8.18.2",
+    "multer": "^2.0.2",
+    "react-chartjs-2": "^5.3.0",
+    "react-router-dom": "^7.9.3"
+  },
+  "scripts": {
+    "start": "node server.js"
+  },
+  "description": "",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
