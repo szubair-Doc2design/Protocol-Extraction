@@ -1,7 +1,7 @@
 // src/pages/RtsmInfo.js
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import countries from "world-countries";
+import countries from "../data/countries.json";
 import "../rtsm.css";
 
 const RTSM_KEY = "rtsmData";
