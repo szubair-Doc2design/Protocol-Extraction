@@ -65,7 +65,6 @@ export default function Dashboard() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
-  // Load protocol from backend or session storage
   useEffect(() => {
     fetch("/api/protocol")
       .then((res) => {
@@ -107,30 +106,32 @@ export default function Dashboard() {
     });
   }
 
+  // ✅ FIXED: Upload JSON file as raw JSON, not FormData
   function handleFileLoad(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = async (e) => {
       try {
         const text = e.target.result;
-        const json = JSON.parse(text);
+        const jsonData = JSON.parse(text);
 
         const res = await fetch("/api/protocol/upload", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(json),
+          body: JSON.stringify(jsonData),
         });
 
+        if (!res.ok) throw new Error("Upload failed");
         const result = await res.json();
+
         if (result.success) {
-          const cleaned = normalizeProtocolData(json);
-          persistProtocol(cleaned);
+          persistProtocol(jsonData);
           const openObj = {};
-          Object.keys(cleaned).forEach((k) => (openObj[k] = true));
+          Object.keys(jsonData).forEach((k) => (openObj[k] = true));
           setPanelsOpen(openObj);
           setSuccessMsg("✅ JSON uploaded successfully");
         } else {
-          throw new Error(result.message || "Upload failed");
+          throw new Error(result.error || "Upload failed");
         }
       } catch (err) {
         console.error("Upload error:", err);
@@ -332,9 +333,7 @@ export default function Dashboard() {
               open={!!panelsOpen[k]}
               onToggle={() => togglePanel(k)}
               onEdit={
-                k === "Schema"
-                  ? undefined
-                  : () => handleEditSection(k, protocol[k])
+                k === "Schema" ? undefined : () => handleEditSection(k, protocol[k])
               }
               hideEdit={k === "Schema"}
             >
@@ -474,9 +473,7 @@ function InlineEditor({ sectionKey, initialData, onSave, onCancel }) {
         <div style={{ marginLeft: 12 }}>
           {Object.entries(value).map(([k, v]) => (
             <div key={k} style={{ marginBottom: 6 }}>
-              <label style={{ fontWeight: "bold", marginRight: 6 }}>
-                {k}:
-              </label>
+              <label style={{ fontWeight: "bold", marginRight: 6 }}>{k}:</label>
               {renderField(v, [...path, k])}
             </div>
           ))}
