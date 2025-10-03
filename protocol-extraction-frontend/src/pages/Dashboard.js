@@ -108,38 +108,45 @@ export default function Dashboard() {
 
   // ✅ FIXED: Upload JSON file as raw JSON, not FormData
   function handleFileLoad(file) {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const text = e.target.result;
-        const jsonData = JSON.parse(text);
+  if (!file) return;
 
-        const res = await fetch("/api/protocol/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(jsonData),
-        });
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      // Parse the JSON from the uploaded file
+      const jsonData = JSON.parse(e.target.result);
 
-        if (!res.ok) throw new Error("Upload failed");
-        const result = await res.json();
+      // ✅ Send JSON to your API route
+      const res = await fetch("/api/protocol/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(jsonData),
+      });
 
-        if (result.success) {
-          persistProtocol(jsonData);
-          const openObj = {};
-          Object.keys(jsonData).forEach((k) => (openObj[k] = true));
-          setPanelsOpen(openObj);
-          setSuccessMsg("✅ JSON uploaded successfully");
-        } else {
-          throw new Error(result.error || "Upload failed");
-        }
-      } catch (err) {
-        console.error("Upload error:", err);
-        alert("Failed to upload JSON: " + err.message);
+      if (!res.ok) throw new Error("Upload failed");
+      const result = await res.json();
+
+      if (result.success) {
+        // Save JSON in state
+        persistProtocol(jsonData);
+
+        const openObj = {};
+        Object.keys(jsonData).forEach((k) => (openObj[k] = true));
+        setPanelsOpen(openObj);
+
+        setSuccessMsg("✅ JSON uploaded successfully");
+      } else {
+        throw new Error(result.message || "Upload failed");
       }
-    };
-    reader.readAsText(file);
-  }
+    } catch (err) {
+      console.error("Upload error:", err);
+      alert("Failed to upload JSON: " + err.message);
+    }
+  };
+
+  // Read uploaded file as text
+  reader.readAsText(file);
+}
 
   function handleFileSelect(e) {
     handleFileLoad(e.target.files?.[0]);
