@@ -77,7 +77,7 @@ export default function DrugOrderingResupply() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("http://localhost:4000/api/drug-ordering-resupply");
+        const res = await fetch("/api/drug-ordering-resupply");
         if (res.ok) {
           const data = await res.json();
           if (!Array.isArray(data.predictiveRules)) data.predictiveRules = defaultPredictiveRules;
@@ -122,7 +122,7 @@ export default function DrugOrderingResupply() {
 
   const save = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/drug-ordering-resupply", {
+      const res = await fetch("/api/drug-ordering-resupply", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

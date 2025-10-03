@@ -146,7 +146,7 @@ export default function RtsmInfo() {
       localStorage.setItem(RTSM_KEY, JSON.stringify(form));
 
       // new backend POST
-      await fetch("http://localhost:4000/api/rtsm-info", {
+      await fetch("/api/inventory-defaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

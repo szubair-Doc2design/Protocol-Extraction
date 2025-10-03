@@ -53,7 +53,7 @@ export default function RolesAndAccess() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const response = await fetch("http://localhost:4000/api/roles-access");
+        const response = await fetch("/api/inventory-defaults");
         if (response.ok) {
           const data = await response.json();
           setSystemRoles(data.systemRoles || initialSystemRoles);
@@ -103,7 +103,7 @@ export default function RolesAndAccess() {
 
   const saveAllChanges = async () => {
     try {
-      const res = await fetch("http://localhost:4000/api/roles-access", {
+      const res = await fetch("/api/inventory-defaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ systemRoles, roleMatrix }),

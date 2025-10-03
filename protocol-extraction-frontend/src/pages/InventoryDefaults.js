@@ -46,7 +46,7 @@ export default function InventoryAndDefaults() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const res = await fetch("http://localhost:4000/api/inventory-defaults");
+        const res = await fetch("/api/inventory-defaults");
         if (res.ok) {
           const data = await res.json();
           setStudyRows(data.studyRows ?? []);
@@ -154,7 +154,7 @@ BT63 5PW`,
   const saveAll = async () => {
     try {
       const data = { studyRows, siteRows, invRows, supplyRows, returnRows };
-      const res = await fetch("http://localhost:4000/api/inventory-defaults", {
+      const res = await fetch("/api/inventory-defaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
