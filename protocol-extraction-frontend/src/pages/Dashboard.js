@@ -65,6 +65,7 @@ export default function Dashboard() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
+  // ✅ Load protocol data from API or sessionStorage
   useEffect(() => {
     fetch("/api/protocol")
       .then((res) => {
@@ -92,6 +93,7 @@ export default function Dashboard() {
       });
   }, []);
 
+  // ✅ Save protocol state to API and sessionStorage
   function persistProtocol(newProtocol) {
     setProtocol(newProtocol);
     try {
@@ -106,47 +108,43 @@ export default function Dashboard() {
     });
   }
 
-  // ✅ FIXED: Upload JSON file as raw JSON, not FormData
+  // ✅ Upload JSON file and send to /api/protocol/upload
   function handleFileLoad(file) {
-  if (!file) return;
+    if (!file) return;
 
-  const reader = new FileReader();
-  reader.onload = async (e) => {
-    try {
-      // Parse the JSON from the uploaded file
-      const jsonData = JSON.parse(e.target.result);
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      try {
+        const jsonData = JSON.parse(e.target.result);
 
-      // ✅ Send JSON to your API route
-      const res = await fetch("/api/protocol/upload", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(jsonData),
-      });
+        const res = await fetch("/api/protocol/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(jsonData),
+        });
 
-      if (!res.ok) throw new Error("Upload failed");
-      const result = await res.json();
+        if (!res.ok) throw new Error("Upload failed");
+        const result = await res.json();
 
-      if (result.success) {
-        // Save JSON in state
-        persistProtocol(jsonData);
+        if (result.success) {
+          persistProtocol(jsonData);
 
-        const openObj = {};
-        Object.keys(jsonData).forEach((k) => (openObj[k] = true));
-        setPanelsOpen(openObj);
+          const openObj = {};
+          Object.keys(jsonData).forEach((k) => (openObj[k] = true));
+          setPanelsOpen(openObj);
 
-        setSuccessMsg("✅ JSON uploaded successfully");
-      } else {
-        throw new Error(result.message || "Upload failed");
+          setSuccessMsg("✅ JSON uploaded successfully");
+        } else {
+          throw new Error(result.error || "Upload failed");
+        }
+      } catch (err) {
+        console.error("Upload error:", err);
+        alert("Failed to upload JSON: " + err.message);
       }
-    } catch (err) {
-      console.error("Upload error:", err);
-      alert("Failed to upload JSON: " + err.message);
-    }
-  };
+    };
 
-  // Read uploaded file as text
-  reader.readAsText(file);
-}
+    reader.readAsText(file);
+  }
 
   function handleFileSelect(e) {
     handleFileLoad(e.target.files?.[0]);
@@ -410,7 +408,7 @@ export default function Dashboard() {
   );
 }
 
-/* Recursive Inline Editor with Safe Path Update and Add Row */
+/* Recursive Inline Editor */
 function InlineEditor({ sectionKey, initialData, onSave, onCancel }) {
   const [data, setData] = React.useState(() => deepClone(initialData));
 

@@ -46,6 +46,7 @@ export default function InventoryAndDefaults() {
   useEffect(() => {
     async function fetchData() {
       try {
+        // <-- FIXED: use relative path so it works on Vercel and locally
         const res = await fetch("/api/inventory-defaults");
         if (res.ok) {
           const data = await res.json();
@@ -55,6 +56,7 @@ export default function InventoryAndDefaults() {
           setSupplyRows(data.supplyRows ?? []);
           setReturnRows(data.returnRows ?? []);
         } else {
+          // fall back to local defaults if API response not ok
           setStudyRows([
             { data: "Study-Wide Drug Receipt", default: "On", limit: "N/A" },
             { data: "Study-Wide Subject Kit Replacement", default: "On", limit: "N/A" },
@@ -154,6 +156,8 @@ BT63 5PW`,
   const saveAll = async () => {
     try {
       const data = { studyRows, siteRows, invRows, supplyRows, returnRows };
+
+      // <-- FIXED: use relative path to work on Vercel deploys
       const res = await fetch("/api/inventory-defaults", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
