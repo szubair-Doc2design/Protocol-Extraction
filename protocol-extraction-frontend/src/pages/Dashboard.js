@@ -9,6 +9,10 @@ import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
 
+// ✅ backend URL: uses env variable in Vercel, or localhost if running locally
+const BACKEND_URL =
+  process.env.BACKEND_URL || "http://localhost:4000";
+
 /** Safely parse JSON strings (also strips ``` fences if present) */
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
@@ -65,9 +69,8 @@ export default function Dashboard() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
-  // ✅ Load protocol data from API or sessionStorage
   useEffect(() => {
-    fetch("/api/protocol")
+    fetch(`${BACKEND_URL}/api/protocol`)
       .then((res) => {
         if (!res.ok) throw new Error("No protocol data");
         return res.json();
@@ -93,13 +96,12 @@ export default function Dashboard() {
       });
   }, []);
 
-  // ✅ Save protocol state to API and sessionStorage
   function persistProtocol(newProtocol) {
     setProtocol(newProtocol);
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(newProtocol));
     } catch {}
-    fetch("/api/protocol", {
+    fetch(`${BACKEND_URL}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newProtocol),
@@ -108,7 +110,7 @@ export default function Dashboard() {
     });
   }
 
-  // ✅ Upload JSON file and send to /api/protocol/upload
+  // ✅ Upload JSON file as raw JSON, not FormData
   function handleFileLoad(file) {
     if (!file) return;
 
@@ -117,7 +119,7 @@ export default function Dashboard() {
       try {
         const jsonData = JSON.parse(e.target.result);
 
-        const res = await fetch("/api/protocol/upload", {
+        const res = await fetch(`${BACKEND_URL}/api/protocol/upload`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(jsonData),
@@ -187,7 +189,7 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
-    fetch("/api/protocol", {
+    fetch(`${BACKEND_URL}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
