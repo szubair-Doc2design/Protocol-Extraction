@@ -6,55 +6,79 @@ const bodyParser = require("body-parser");
 const multer = require("multer");
 require("dotenv").config();
 
-// Models
+const app = express();
+
+/* ------------------------------------ */
+/* CORS CONFIG                          */
+/* ------------------------------------ */
+// ✅ Allow your deployed Vercel app + local dev
+const allowedOrigins = [
+  "https://protocol-extraction-5gcv.vercel.app", // your live frontend
+  "http://localhost:3000", // local testing
+];
+
+app.use(
+  cors({
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true,
+  })
+);
+
+/* ------------------------------------ */
+/* MONGODB CONNECTION                   */
+/* ------------------------------------ */
+console.log("Loaded MONGO_URI:", process.env.MONGO_URI ? "✅ Found" : "❌ Missing");
+
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
+/* ------------------------------------ */
+/* MODELS                               */
+/* ------------------------------------ */
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
 const InventoryDefaults = require("./models/InventoryDefaults");
 const DrugOrderingResupply = require("./models/DrugOrderingResupply");
 
-// Routes
+/* ------------------------------------ */
+/* ROUTES                               */
+/* ------------------------------------ */
 const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
-const app = express();
-app.use(cors());
-app.use(bodyParser.json({ limit: "10mb" }));
-
-// ✅ Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-mongoose.connection.on("connected", () => console.log("✅ MongoDB connected"));
-mongoose.connection.on("error", (err) => console.error("❌ MongoDB error:", err));
-
-// File upload setup
+app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
 /* ------------------------------------ */
-/* Health Check                         */
+/* HEALTH CHECK                         */
 /* ------------------------------------ */
 app.get("/", (req, res) => {
-  res.send("✅ Backend is running fine!");
+  res.send("✅ Backend is running successfully");
 });
 
 /* ------------------------------------ */
-/* Upload via FormData (from frontend)  */
+/* JSON FILE UPLOAD                     */
 /* ------------------------------------ */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, error: "No file received" });
+      return res.status(400).json({ success: false, error: "No file uploaded" });
     }
 
-    // Convert file buffer to string and parse JSON
-    const jsonStr = req.file.buffer.toString("utf8");
+    const jsonStr = req.file.buffer.toString("utf8").trim();
+    if (!jsonStr) {
+      return res.status(400).json({ success: false, error: "Empty JSON file" });
+    }
+
     let parsed;
     try {
       parsed = JSON.parse(jsonStr);
     } catch (e) {
-      console.error("❌ Invalid JSON content:", e);
-      return res.status(400).json({ success: false, error: "Invalid JSON" });
+      console.error("❌ Invalid JSON:", e);
+      return res.status(400).json({ success: false, error: "Invalid JSON format" });
     }
 
     await Protocol.findOneAndUpdate(
@@ -66,130 +90,138 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
     console.log("✅ Protocol JSON uploaded successfully");
     res.json({ success: true, message: "Protocol JSON uploaded successfully" });
   } catch (err) {
-    console.error("Upload error:", err);
-    res.status(500).json({ success: false, error: "Server error during upload" });
+    console.error("❌ Upload error:", err);
+    res.status(500).json({ success: false, error: "Server error while uploading" });
   }
 });
 
 /* ------------------------------------ */
-/* Get latest protocol data             */
+/* PROTOCOL APIS                        */
 /* ------------------------------------ */
 app.get("/api/protocol", async (req, res) => {
   try {
     const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
-    if (!doc) {
-      return res.status(404).json({ success: false, message: "No protocol found" });
-    }
+    if (!doc) return res.status(404).json({ message: "No protocol data found" });
     res.json(doc.protocolJson);
   } catch (err) {
-    console.error("Fetch error:", err);
-    res.status(500).json({ success: false, error: "Failed to read protocol data" });
+    console.error(err);
+    res.status(500).json({ message: "Error reading protocol data" });
   }
 });
 
-/* ------------------------------------ */
-/* Save protocol updates                */
-/* ------------------------------------ */
 app.post("/api/protocol", async (req, res) => {
   try {
     await Protocol.findOneAndUpdate(
       {},
       { protocolJson: req.body, updatedAt: new Date() },
-      { upsert: true, new: true }
+      { upsert: true }
     );
     res.json({ success: true });
   } catch (err) {
-    console.error("Protocol save error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.post("/api/protocol/builtOn", async (req, res) => {
+  try {
+    const { builtOn } = req.body;
+    await Protocol.findOneAndUpdate({}, { builtOn, updatedAt: new Date() }, { upsert: true });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
 /* ------------------------------------ */
-/* RTSM Info endpoints                  */
+/* RTSM INFO                            */
 /* ------------------------------------ */
 app.post("/api/rtsm-info", async (req, res) => {
   try {
     const saved = await RtsmInfo.create(req.body);
     res.json({ success: true, id: saved._id });
   } catch (err) {
-    console.error("RTSM Save error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error(err);
+    res.status(500).json({ success: false, message: err.message });
   }
 });
 
 app.get("/api/rtsm-info", async (req, res) => {
   try {
-    const docs = await RtsmInfo.find().sort({ createdAt: -1 });
+    const { protocolNumber } = req.query;
+    const filter = protocolNumber ? { protocolNumber } : {};
+    const docs = await RtsmInfo.find(filter).sort({ createdAt: -1 });
     res.json(docs);
   } catch (err) {
-    console.error("RTSM fetch error:", err);
-    res.status(500).json({ success: false, error: err.message });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching RTSM info", error: err });
   }
 });
 
 /* ------------------------------------ */
-/* Roles & Access endpoints             */
+/* ROLES & ACCESS                       */
 /* ------------------------------------ */
 app.get("/api/roles-access", async (req, res) => {
   try {
     const doc = await RolesAccess.findOne().sort({ updatedAt: -1 });
-    if (!doc) return res.status(404).json({ message: "No roles found" });
+    if (!doc) return res.status(404).json({ message: "No roles and access data found" });
     res.json(doc);
   } catch (err) {
-    console.error("Roles fetch error:", err);
-    res.status(500).json({ message: "Error fetching roles", error: err });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching roles and access data", error: err });
   }
 });
 
 app.post("/api/roles-access", async (req, res) => {
   try {
+    const { systemRoles, roleMatrix } = req.body;
     const updated = await RolesAccess.findOneAndUpdate(
       {},
-      req.body,
+      { systemRoles, roleMatrix, updatedAt: new Date() },
       { upsert: true, new: true }
     );
     res.json(updated);
   } catch (err) {
-    console.error("Roles save error:", err);
-    res.status(500).json({ message: "Error saving roles", error: err });
+    console.error(err);
+    res.status(500).json({ message: "Error saving roles and access data", error: err });
   }
 });
 
 /* ------------------------------------ */
-/* Inventory defaults endpoints         */
+/* INVENTORY DEFAULTS                   */
 /* ------------------------------------ */
 app.get("/api/inventory-defaults", async (req, res) => {
   try {
     const doc = await InventoryDefaults.findOne().sort({ updatedAt: -1 });
-    if (!doc) return res.status(404).json({ message: "No inventory defaults" });
+    if (!doc) return res.status(404).json({ message: "No inventory defaults found" });
     res.json(doc);
   } catch (err) {
-    console.error("Inventory fetch error:", err);
-    res.status(500).json({ message: "Error fetching inventory", error: err });
+    console.error(err);
+    res.status(500).json({ message: "Error fetching inventory defaults", error: err });
   }
 });
 
 app.post("/api/inventory-defaults", async (req, res) => {
   try {
-    const updated = await InventoryDefaults.findOneAndUpdate(
-      {},
-      req.body,
-      { upsert: true, new: true }
-    );
+    const updated = await InventoryDefaults.findOneAndUpdate({}, req.body, {
+      upsert: true,
+      new: true,
+    });
     res.json(updated);
   } catch (err) {
-    console.error("Inventory save error:", err);
-    res.status(500).json({ message: "Error saving inventory", error: err });
+    console.error(err);
+    res.status(500).json({ message: "Error saving inventory defaults", error: err });
   }
 });
 
 /* ------------------------------------ */
-/* Drug Ordering Routes                 */
+/* DRUG ORDERING & RESUPPLY             */
 /* ------------------------------------ */
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
 /* ------------------------------------ */
-/* Start the server                     */
+/* START SERVER                         */
 /* ------------------------------------ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));

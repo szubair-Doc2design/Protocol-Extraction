@@ -66,7 +66,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(`/api/protocol`)
+    fetch("https://protocol-backend.onrender.com/api/protocol/upload")
       .then((res) => {
         if (!res.ok) throw new Error("No protocol data");
         return res.json();
@@ -97,7 +97,7 @@ export default function Dashboard() {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(newProtocol));
     } catch {}
-    fetch(`/api/protocol`, {
+    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newProtocol),
@@ -111,7 +111,7 @@ export default function Dashboard() {
     const formData = new FormData();
     formData.append("file", file);
 
-    fetch(`/api/protocol/upload`, {
+    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
       method: "POST",
       body: formData,
     })
@@ -124,7 +124,7 @@ export default function Dashboard() {
       })
       .then((result) => {
         if (result.success || /success/i.test(result.message || "")) {
-          return fetch(`/api/protocol`)
+          return fetch("https://protocol-backend.onrender.com/api/protocol/upload")
             .then((r) => r.json())
             .then((data) => {
               const cleaned = normalizeProtocolData(data);
@@ -184,7 +184,7 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
-    fetch(`/api/protocol`, {
+    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
