@@ -20,56 +20,69 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
 const app = express();
 
-// ✅ FIXED CORS CONFIG — Allow Vercel Frontend + Localhost
-const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your deployed frontend
-  "http://localhost:3000", // for local testing
-];
+/* -------------------------------------------------------------------------- */
+/* ✅ 1. UNIVERSAL CORS FIX                                                   */
+/* -------------------------------------------------------------------------- */
+app.use((req, res, next) => {
+  const allowedOrigins = [
+    "https://protocol-extraction-5gcv.vercel.app",
+    "http://localhost:3000",
+  ];
+  const origin = req.headers.origin;
 
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.warn("❌ Blocked by CORS:", origin);
-        callback(new Error("CORS not allowed for this origin: " + origin));
-      }
-    },
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-    credentials: true,
-  })
-);
+  if (allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+  }
 
-// Handle preflight requests
-app.options("*", cors());
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, X-Requested-With"
+  );
+  res.header("Access-Control-Allow-Credentials", "true");
 
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+app.use(express.json());
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ MongoDB connection
+/* -------------------------------------------------------------------------- */
+/* ✅ 2. MongoDB Connection                                                   */
+/* -------------------------------------------------------------------------- */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-/* ------------------------------------ */
-/* Health Check                         */
-/* ------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* ✅ 3. Health & Debug Routes                                                */
+/* -------------------------------------------------------------------------- */
 app.get("/", (req, res) => {
-  res.send("✅ Backend is running successfully (CORS fixed)");
+  res.send("✅ Backend running and CORS configured correctly");
 });
 
-/* ------------------------------------ */
-/* File Upload Endpoint (Frontend uses this) */
-/* ------------------------------------ */
+app.get("/status", async (req, res) => {
+  const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+  res.json({ success: true, mongoStatus: mongoState });
+});
+
+/* -------------------------------------------------------------------------- */
+/* ✅ 4. File Upload (Main JSON Upload Endpoint)                              */
+/* -------------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, error: "No file uploaded" });
+    if (!req.file)
+      return res.status(400).json({ success: false, error: "No file uploaded" });
 
     const jsonStr = req.file.buffer.toString("utf8").trim();
-    if (!jsonStr) return res.status(400).json({ success: false, error: "Empty JSON file" });
+    if (!jsonStr)
+      return res.status(400).json({ success: false, error: "Empty JSON file" });
 
     let parsed;
     try {
@@ -93,9 +106,9 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-/* ------------------------------------ */
-/* Dashboard Protocol APIs              */
-/* ------------------------------------ */
+/* -------------------------------------------------------------------------- */
+/* ✅ 5. Additional API Routes (unchanged)                                    */
+/* -------------------------------------------------------------------------- */
 app.get("/api/protocol", async (req, res) => {
   try {
     const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
@@ -106,9 +119,6 @@ app.get("/api/protocol", async (req, res) => {
   }
 });
 
-/* ------------------------------------ */
-/* RTSM Info, Roles, Inventory, etc.    */
-/* ------------------------------------ */
 app.post("/api/rtsm-info", async (req, res) => {
   try {
     const saved = await RtsmInfo.create(req.body);
@@ -173,13 +183,10 @@ app.post("/api/inventory-defaults", async (req, res) => {
   }
 });
 
-/* ------------------------------------ */
-/* Drug Ordering & Automated Resupply   */
-/* ------------------------------------ */
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
-/* ------------------------------------ */
-/* Start Server                         */
-/* ------------------------------------ */
-const PORT = process.env.PORT || 10000; // Render uses this port
+/* -------------------------------------------------------------------------- */
+/* ✅ 6. Server Startup                                                      */
+/* -------------------------------------------------------------------------- */
+const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
