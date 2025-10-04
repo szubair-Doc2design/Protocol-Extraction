@@ -7,7 +7,6 @@ require("dotenv").config();
 
 console.log("Loaded MONGO_URI:", process.env.MONGO_URI ? "✅ Found" : "❌ Missing");
 
-// Models
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
@@ -17,34 +16,35 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 const app = express();
 
 /* ---------------------------------------------------------------------- */
-/* ✅ MANUAL CORS HANDLING + DEBUG LOGGING                                 */
+/* ✅ Enhanced CORS handling — works even when Origin is undefined         */
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your frontend on Vercel
-  "http://localhost:3000" // local development
+  "https://protocol-extraction-5gcv.vercel.app",
+  "http://localhost:3000",
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  console.log("🌐 Incoming request from origin:", origin);
+  console.log("🌐 Incoming request from origin:", origin || "undefined");
 
-  if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
+  // Allow undefined origins (like from serverless/Vercel) as fallback
+  if (!origin || allowedOrigins.includes(origin)) {
+    res.setHeader(
+      "Access-Control-Allow-Origin",
+      origin || "https://protocol-extraction-5gcv.vercel.app"
+    );
   } else {
-    console.warn("⚠️  Origin not allowed by CORS:", origin);
-    res.setHeader("Access-Control-Allow-Origin", "https://protocol-extraction-5gcv.vercel.app");
+    console.log("❌ Origin not allowed by CORS:", origin);
+    return res.status(403).json({ error: "CORS not allowed for this origin" });
   }
 
-  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // Handle preflight OPTIONS requests
   if (req.method === "OPTIONS") {
-    console.log("🟢 Preflight request handled");
-    return res.status(204).end();
+    return res.sendStatus(204);
   }
-
   next();
 });
 
@@ -52,7 +52,7 @@ app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
 /* ---------------------------------------------------------------------- */
-/* ✅ MongoDB Connection                                                   */
+/* MongoDB Connection                                                     */
 /* ---------------------------------------------------------------------- */
 mongoose
   .connect(process.env.MONGO_URI)
@@ -60,33 +60,24 @@ mongoose
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 /* ---------------------------------------------------------------------- */
-/* Health Check                                                           */
+/* Health Check Routes                                                    */
 /* ---------------------------------------------------------------------- */
-app.get("/", (req, res) => {
-  res.send("✅ Backend is running successfully");
-});
+app.get("/", (req, res) => res.send("✅ Backend is running successfully"));
 
-/* Quick Status Check */
 app.get("/status", async (req, res) => {
-  try {
-    const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
-    res.json({
-      success: true,
-      mongoStatus: mongoState,
-      message: "Backend and MongoDB status check",
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Status check failed", error: err.message });
-  }
+  const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+  res.json({
+    success: true,
+    mongoStatus: mongoState,
+    message: "Backend and MongoDB status check",
+  });
 });
 
 /* ---------------------------------------------------------------------- */
-/* File Upload Endpoint                                                   */
+/* File Upload API                                                        */
 /* ---------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
-    console.log("📦 File upload request received");
-
     if (!req.file)
       return res.status(400).json({ success: false, error: "No file uploaded" });
 
@@ -94,14 +85,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
     if (!jsonStr)
       return res.status(400).json({ success: false, error: "Empty JSON file" });
 
-    let parsed;
-    try {
-      parsed = JSON.parse(jsonStr);
-    } catch (e) {
-      console.error("❌ Invalid JSON format:", e.message);
-      return res.status(400).json({ success: false, error: "Invalid JSON format" });
-    }
-
+    const parsed = JSON.parse(jsonStr);
     await Protocol.findOneAndUpdate(
       {},
       { protocolJson: parsed, updatedAt: new Date() },
@@ -117,93 +101,52 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
 });
 
 /* ---------------------------------------------------------------------- */
-/* Dashboard Protocol APIs                                                */
+/* Other APIs                                                             */
 /* ---------------------------------------------------------------------- */
 app.get("/api/protocol", async (req, res) => {
-  try {
-    const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
-    if (!doc) return res.status(404).json({ message: "No protocol data found" });
-    res.json(doc.protocolJson);
-  } catch (err) {
-    console.error("❌ Error reading protocol data:", err);
-    res.status(500).json({ message: "Error reading protocol data" });
-  }
+  const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
+  if (!doc) return res.status(404).json({ message: "No protocol data found" });
+  res.json(doc.protocolJson);
 });
 
-/* ---------------------------------------------------------------------- */
-/* RTSM Info Endpoints                                                    */
-/* ---------------------------------------------------------------------- */
 app.post("/api/rtsm-info", async (req, res) => {
-  try {
-    const saved = await RtsmInfo.create(req.body);
-    res.json({ success: true, id: saved._id });
-  } catch (err) {
-    console.error("❌ RTSM Save Error:", err);
-    res.status(500).json({ success: false, message: err.message });
-  }
+  const saved = await RtsmInfo.create(req.body);
+  res.json({ success: true, id: saved._id });
 });
 
 app.get("/api/rtsm-info", async (req, res) => {
-  try {
-    const docs = await RtsmInfo.find({}).sort({ createdAt: -1 });
-    res.json(docs);
-  } catch (err) {
-    console.error("❌ RTSM Fetch Error:", err);
-    res.status(500).json({ message: "Error fetching RTSM info" });
-  }
+  const docs = await RtsmInfo.find({}).sort({ createdAt: -1 });
+  res.json(docs);
 });
 
-/* ---------------------------------------------------------------------- */
-/* Roles, Inventory, Drug Ordering                                        */
-/* ---------------------------------------------------------------------- */
 app.get("/api/roles-access", async (req, res) => {
-  try {
-    const doc = await RolesAccess.findOne().sort({ updatedAt: -1 });
-    if (!doc) return res.status(404).json({ message: "No roles found" });
-    res.json(doc);
-  } catch (err) {
-    console.error("❌ Roles fetch error:", err);
-    res.status(500).json({ message: "Error fetching roles" });
-  }
+  const doc = await RolesAccess.findOne().sort({ updatedAt: -1 });
+  if (!doc) return res.status(404).json({ message: "No roles found" });
+  res.json(doc);
 });
 
 app.post("/api/roles-access", async (req, res) => {
-  try {
-    const { systemRoles, roleMatrix } = req.body;
-    const updated = await RolesAccess.findOneAndUpdate(
-      {},
-      { systemRoles, roleMatrix, updatedAt: new Date() },
-      { upsert: true, new: true }
-    );
-    res.json(updated);
-  } catch (err) {
-    console.error("❌ Roles save error:", err);
-    res.status(500).json({ message: "Error saving roles" });
-  }
+  const { systemRoles, roleMatrix } = req.body;
+  const updated = await RolesAccess.findOneAndUpdate(
+    {},
+    { systemRoles, roleMatrix, updatedAt: new Date() },
+    { upsert: true, new: true }
+  );
+  res.json(updated);
 });
 
 app.get("/api/inventory-defaults", async (req, res) => {
-  try {
-    const doc = await InventoryDefaults.findOne().sort({ updatedAt: -1 });
-    if (!doc) return res.status(404).json({ message: "No inventory found" });
-    res.json(doc);
-  } catch (err) {
-    console.error("❌ Inventory fetch error:", err);
-    res.status(500).json({ message: "Error fetching inventory" });
-  }
+  const doc = await InventoryDefaults.findOne().sort({ updatedAt: -1 });
+  if (!doc) return res.status(404).json({ message: "No inventory found" });
+  res.json(doc);
 });
 
 app.post("/api/inventory-defaults", async (req, res) => {
-  try {
-    const updated = await InventoryDefaults.findOneAndUpdate({}, req.body, {
-      upsert: true,
-      new: true,
-    });
-    res.json(updated);
-  } catch (err) {
-    console.error("❌ Inventory save error:", err);
-    res.status(500).json({ message: "Error saving inventory" });
-  }
+  const updated = await InventoryDefaults.findOneAndUpdate({}, req.body, {
+    upsert: true,
+    new: true,
+  });
+  res.json(updated);
 });
 
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);

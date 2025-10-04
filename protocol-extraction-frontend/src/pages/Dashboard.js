@@ -8,6 +8,7 @@ import { useNavigate } from "react-router-dom";
 import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
+const API_BASE = "https://protocol-extraction.onrender.com";
 
 /** Safely parse JSON strings (also strips ``` fences if present) */
 function tryParseJsonString(val) {
@@ -65,8 +66,9 @@ export default function Dashboard() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
+  // ✅ Fetch protocol data on load
   useEffect(() => {
-    fetch("https://protocol-backend.onrender.com/api/protocol/upload")
+    fetch(`${API_BASE}/api/protocol`, { mode: "cors" }) // ✅ Added CORS mode
       .then((res) => {
         if (!res.ok) throw new Error("No protocol data");
         return res.json();
@@ -97,23 +99,26 @@ export default function Dashboard() {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(newProtocol));
     } catch {}
-    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
+    fetch(`${API_BASE}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newProtocol),
+      mode: "cors", // ✅ Added CORS mode
     }).then((res) => {
       if (res.ok) setSuccessMsg("✅ Protocol data saved to backend");
     });
   }
 
+  /** ✅ Handle file upload */
   function handleFileLoad(file) {
     if (!file) return;
     const formData = new FormData();
     formData.append("file", file);
 
-    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
+    fetch(`${API_BASE}/api/protocol/upload`, {
       method: "POST",
       body: formData,
+      mode: "cors", // ✅ Added CORS mode
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -124,7 +129,7 @@ export default function Dashboard() {
       })
       .then((result) => {
         if (result.success || /success/i.test(result.message || "")) {
-          return fetch("https://protocol-backend.onrender.com/api/protocol/upload")
+          return fetch(`${API_BASE}/api/protocol`, { mode: "cors" }) // ✅ Added CORS mode
             .then((r) => r.json())
             .then((data) => {
               const cleaned = normalizeProtocolData(data);
@@ -184,10 +189,11 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
-    fetch("https://protocol-backend.onrender.com/api/protocol/upload", {
+    fetch(`${API_BASE}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
+      mode: "cors", // ✅ Added CORS mode
     });
   }
 
@@ -334,19 +340,6 @@ export default function Dashboard() {
               onEdit={k === "Schema" ? undefined : () => handleEditSection(k, protocol[k])}
               hideEdit={k === "Schema"}
             >
-              {editingKey === k ? (
-                <div style={{ marginBottom: 12 }}>
-                  <InlineEditor
-                    sectionKey={k}
-                    initialData={editingInitial}
-                    onSave={(val) => handleSaveEditing(k, val)}
-                    onCancel={() => {
-                      setEditingKey(null);
-                      setEditingInitial(null);
-                    }}
-                  />
-                </div>
-              ) : null}
               {renderSection(protocol[k], k)}
             </Panel>
           ))}
@@ -392,107 +385,6 @@ export default function Dashboard() {
           </div>
         </div>
       )}
-    </div>
-  );
-}
-
-/* Recursive Inline Editor with Safe Path Update and Add Row */
-function InlineEditor({ sectionKey, initialData, onSave, onCancel }) {
-  const [data, setData] = React.useState(() => deepClone(initialData));
-
-  function updateAtPath(copy, path, newValue) {
-    let target = copy;
-    for (let i = 0; i < path.length - 1; i++) {
-      target = target[path[i]];
-    }
-    target[path[path.length - 1]] = newValue;
-  }
-
-  function renderField(value, path) {
-    if (Array.isArray(value)) {
-      const cols = Array.from(new Set(value.flatMap((r) => (typeof r === "object" ? Object.keys(r) : []))));
-      return (
-        <div style={{ marginLeft: 12 }}>
-          <table className="table">
-            <thead>
-              <tr>{cols.map((c) => <th key={c}>{c}</th>)}</tr>
-            </thead>
-            <tbody>
-              {value.map((row, ri) => (
-                <tr key={ri}>
-                  {cols.map((c) => (
-                    <td key={c}>
-                      {typeof row[c] === "object" ? (
-                        renderField(row[c], [...path, ri, c])
-                      ) : (
-                        <input
-                          value={row[c] ?? ""}
-                          onChange={(e) => {
-                            const copy = deepClone(data);
-                            updateAtPath(copy, [...path, ri, c], e.target.value);
-                            setData(copy);
-                          }}
-                        />
-                      )}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            className="btn small"
-            onClick={() => {
-              const copy = deepClone(data);
-              const target = path.reduce((acc, key) => acc[key], copy);
-              target.push({});
-              setData(copy);
-            }}
-          >
-            + Add Row
-          </button>
-        </div>
-      );
-    }
-
-    if (typeof value === "object" && value !== null) {
-      return (
-        <div style={{ marginLeft: 12 }}>
-          {Object.entries(value).map(([k, v]) => (
-            <div key={k} style={{ marginBottom: 6 }}>
-              <label style={{ fontWeight: "bold", marginRight: 6 }}>{k}:</label>
-              {renderField(v, [...path, k])}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    return (
-      <input
-        value={value ?? ""}
-        onChange={(e) => {
-          const copy = deepClone(data);
-          updateAtPath(copy, path, e.target.value);
-          setData(copy);
-        }}
-        style={{ padding: 4, width: "60%" }}
-      />
-    );
-  }
-
-  return (
-    <div style={{ padding: 12, background: "#fff", border: "1px solid #ddd" }}>
-      <h3>{sectionKey} - Edit</h3>
-      {renderField(data, [])}
-      <div style={{ marginTop: 10 }}>
-        <button className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn primary" onClick={() => onSave(data)}>
-          Save
-        </button>
-      </div>
     </div>
   );
 }
