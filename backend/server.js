@@ -8,81 +8,76 @@ require("dotenv").config();
 
 console.log("Loaded MONGO_URI:", process.env.MONGO_URI ? "✅ Found" : "❌ Missing");
 
-// Models
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
 const InventoryDefaults = require("./models/InventoryDefaults");
-const DrugOrderingResupply = require("./models/DrugOrderingResupply");
-
-// Routes
 const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
 const app = express();
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 1. UNIVERSAL CORS FIX                                                   */
-/* -------------------------------------------------------------------------- */
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "https://protocol-extraction-5gcv.vercel.app",
-    "http://localhost:3000",
-  ];
-  const origin = req.headers.origin;
+/* ---------------------------------------------------------------------- */
+/* ✅ CORS — must be placed at the top before routes or body parsers       */
+/* ---------------------------------------------------------------------- */
+const allowedOrigins = [
+  "https://protocol-extraction-5gcv.vercel.app", // your frontend
+  "http://localhost:3000", // local dev (optional)
+];
 
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
-
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, X-Requested-With"
-  );
-  res.header("Access-Control-Allow-Credentials", "true");
+  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.setHeader("Access-Control-Allow-Credentials", "true");
 
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    return res.sendStatus(200); // Handle preflight
   }
-
   next();
 });
 
-app.use(express.json());
+/* ---------------------------------------------------------------------- */
+/* Middleware setup                                                       */
+/* ---------------------------------------------------------------------- */
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 2. MongoDB Connection                                                   */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* MongoDB Connection                                                     */
+/* ---------------------------------------------------------------------- */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 3. Health & Debug Routes                                                */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* Health Check + Status                                                  */
+/* ---------------------------------------------------------------------- */
 app.get("/", (req, res) => {
-  res.send("✅ Backend running and CORS configured correctly");
+  res.send("✅ Backend is running successfully");
 });
 
 app.get("/status", async (req, res) => {
-  const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
-  res.json({ success: true, mongoStatus: mongoState });
+  try {
+    const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+    res.json({ success: true, mongoStatus: mongoState });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Status check failed", error: err.message });
+  }
 });
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 4. File Upload (Main JSON Upload Endpoint)                              */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* Upload Endpoint                                                        */
+/* ---------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file)
-      return res.status(400).json({ success: false, error: "No file uploaded" });
+    if (!req.file) return res.status(400).json({ success: false, error: "No file uploaded" });
 
     const jsonStr = req.file.buffer.toString("utf8").trim();
-    if (!jsonStr)
-      return res.status(400).json({ success: false, error: "Empty JSON file" });
+    if (!jsonStr) return res.status(400).json({ success: false, error: "Empty JSON file" });
 
     let parsed;
     try {
@@ -106,19 +101,35 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 5. Additional API Routes (unchanged)                                    */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* Dashboard API Routes                                                   */
+/* ---------------------------------------------------------------------- */
 app.get("/api/protocol", async (req, res) => {
   try {
     const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
     if (!doc) return res.status(404).json({ message: "No protocol data found" });
     res.json(doc.protocolJson);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error reading protocol data" });
   }
 });
 
+app.post("/api/protocol", async (req, res) => {
+  try {
+    await Protocol.findOneAndUpdate(
+      {},
+      { protocolJson: req.body, updatedAt: new Date() },
+      { upsert: true }
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+/* ---------------------------------------------------------------------- */
+/* RTSM Info, Roles, Inventory, Drug Ordering                             */
+/* ---------------------------------------------------------------------- */
 app.post("/api/rtsm-info", async (req, res) => {
   try {
     const saved = await RtsmInfo.create(req.body);
@@ -132,7 +143,7 @@ app.get("/api/rtsm-info", async (req, res) => {
   try {
     const docs = await RtsmInfo.find({}).sort({ createdAt: -1 });
     res.json(docs);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error fetching RTSM info" });
   }
 });
@@ -142,7 +153,7 @@ app.get("/api/roles-access", async (req, res) => {
     const doc = await RolesAccess.findOne().sort({ updatedAt: -1 });
     if (!doc) return res.status(404).json({ message: "No roles and access data found" });
     res.json(doc);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error fetching roles and access data" });
   }
 });
@@ -156,7 +167,7 @@ app.post("/api/roles-access", async (req, res) => {
       { upsert: true, new: true }
     );
     res.json(updated);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error saving roles and access data" });
   }
 });
@@ -166,7 +177,7 @@ app.get("/api/inventory-defaults", async (req, res) => {
     const doc = await InventoryDefaults.findOne().sort({ updatedAt: -1 });
     if (!doc) return res.status(404).json({ message: "No inventory defaults found" });
     res.json(doc);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error fetching inventory defaults" });
   }
 });
@@ -178,15 +189,15 @@ app.post("/api/inventory-defaults", async (req, res) => {
       new: true,
     });
     res.json(updated);
-  } catch (err) {
+  } catch {
     res.status(500).json({ message: "Error saving inventory defaults" });
   }
 });
 
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
-/* -------------------------------------------------------------------------- */
-/* ✅ 6. Server Startup                                                      */
-/* -------------------------------------------------------------------------- */
+/* ---------------------------------------------------------------------- */
+/* Start Server                                                           */
+/* ---------------------------------------------------------------------- */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
