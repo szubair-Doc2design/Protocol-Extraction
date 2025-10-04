@@ -20,10 +20,12 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
 const app = express();
 
-// ✅ CORS FIX — Allow your Vercel frontend
+/* ------------------------------------ */
+/* ✅ CORS FIX — Allow frontend access   */
+/* ------------------------------------ */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your frontend
-  "http://localhost:3000" // local testing (optional)
+  "https://protocol-extraction-5gcv.vercel.app", // your Vercel frontend
+  "http://localhost:3000" // for local testing
 ];
 
 app.use(
@@ -32,6 +34,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.warn("❌ Blocked CORS for origin:", origin);
         callback(new Error("CORS not allowed for this origin: " + origin));
       }
     },
@@ -44,7 +47,9 @@ app.use(
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-// ✅ MongoDB connection
+/* ------------------------------------ */
+/* ✅ MongoDB connection                */
+/* ------------------------------------ */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
@@ -58,18 +63,23 @@ app.get("/", (req, res) => {
 });
 
 /* ------------------------------------ */
-/* Quick Status Route (for testing)     */
+/* ✅ /status endpoint for testing Mongo */
 /* ------------------------------------ */
 app.get("/status", async (req, res) => {
   try {
-    const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+    const mongoStates = ["Disconnected", "Connected", "Connecting", "Disconnecting"];
+    const mongoState = mongoStates[mongoose.connection.readyState] || "Unknown";
     res.json({
       success: true,
       mongoStatus: mongoState,
       message: "Backend and MongoDB status check",
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: "Status check failed", error: err.message });
+    res.status(500).json({
+      success: false,
+      message: "Status check failed",
+      error: err.message,
+    });
   }
 });
 
