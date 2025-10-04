@@ -60,6 +60,19 @@ app.get("/", (req, res) => {
   res.send("✅ Backend is running successfully");
 });
 
+/* Quick Status Check */
+app.get("/status", async (req, res) => {
+  try {
+    const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+    res.json({
+      success: true,
+      mongoStatus: mongoState,
+      message: "Backend and MongoDB status check",
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: "Status check failed", error: err.message });
+  }
+});
 /* ---------------------------------------------------------------------- */
 /* File Upload                                                            */
 /* ---------------------------------------------------------------------- */
