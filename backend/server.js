@@ -4,7 +4,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const multer = require("multer");
-require("dotenv").config(); // Load .env (important for Render + local dev)
+require("dotenv").config();
 
 // Models
 const Protocol = require("./models/Protocol");
@@ -20,30 +20,32 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 
-// ✅ Connect to MongoDB (use environment variable on Render / local .env)
-mongoose.connect(process.env.MONGO_URI, {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
-
-mongoose.connection.on("connected", () => console.log("✅ MongoDB connected"));
-mongoose.connection.on("error", (err) => console.error("❌ MongoDB connection error:", err));
+// ✅ Connect to MongoDB (local .env or Render environment variable)
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
 
 const upload = multer({ storage: multer.memoryStorage() });
 
 /* ------------------------------------ */
-/* Health Check (useful for Render)     */
+/* Health Check                         */
 /* ------------------------------------ */
 app.get("/", (req, res) => {
-  res.send("✅ Backend is running");
+  res.send("✅ Backend is running successfully");
 });
 
 /* ------------------------------------ */
-/* JSON Upload (Direct)                 */
+/* Direct JSON upload (optional)        */
 /* ------------------------------------ */
 app.post("/upload", async (req, res) => {
   try {
-    console.log("Received JSON via /upload:", req.body);
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ success: false, message: "Empty JSON body" });
+    }
 
     await Protocol.findOneAndUpdate(
       {},
@@ -51,7 +53,7 @@ app.post("/upload", async (req, res) => {
       { upsert: true, new: true }
     );
 
-    res.json({ success: true, message: "JSON uploaded successfully", data: req.body });
+    res.json({ success: true, message: "JSON uploaded successfully" });
   } catch (err) {
     console.error("Upload error:", err);
     res.status(400).json({ success: false, message: "Invalid JSON data" });
@@ -59,12 +61,28 @@ app.post("/upload", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* Dashboard Protocol Endpoints          */
+/* File Upload Endpoint (Frontend uses this) */
 /* ------------------------------------ */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
-    const jsonStr = req.file.buffer.toString("utf8");
-    const parsed = JSON.parse(jsonStr);
+    if (!req.file) {
+      return res.status(400).json({ success: false, error: "No file uploaded" });
+    }
+
+    const jsonStr = req.file.buffer.toString("utf8").trim();
+
+    // Validate JSON format
+    if (!jsonStr.startsWith("{") || !jsonStr.endsWith("}")) {
+      return res.status(400).json({ success: false, error: "Invalid JSON structure" });
+    }
+
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch (e) {
+      console.error("JSON parse error:", e);
+      return res.status(400).json({ success: false, error: "Invalid JSON file" });
+    }
 
     await Protocol.findOneAndUpdate(
       {},
@@ -75,10 +93,13 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
     res.json({ success: true, message: "Protocol JSON uploaded successfully" });
   } catch (err) {
     console.error("Upload error:", err);
-    res.status(400).json({ success: false, message: "Invalid JSON file" });
+    res.status(500).json({ success: false, error: "Server error while uploading" });
   }
 });
 
+/* ------------------------------------ */
+/* Dashboard Protocol APIs              */
+/* ------------------------------------ */
 app.get("/api/protocol", async (req, res) => {
   try {
     const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
@@ -194,12 +215,12 @@ app.post("/api/inventory-defaults", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* Drug Ordering & Automated Resupply  */
+/* Drug Ordering & Automated Resupply   */
 /* ------------------------------------ */
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
 /* ------------------------------------ */
-/* Start server                        */
+/* Start server                         */
 /* ------------------------------------ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
