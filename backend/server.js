@@ -17,15 +17,17 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 const app = express();
 
 /* ---------------------------------------------------------------------- */
-/* ✅ CORS — must be placed at the top before routes or body parsers       */
+/* ✅ Strong CORS Middleware - Must be the FIRST middleware               */
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your frontend
-  "http://localhost:3000", // local dev (optional)
+  "https://protocol-extraction-5gcv.vercel.app", // Frontend
+  "http://localhost:3000", // Local testing
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  console.log("🌍 Incoming request from:", origin);
+
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   }
@@ -33,16 +35,19 @@ app.use((req, res, next) => {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
+  // Explicitly handle preflight requests
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200); // Handle preflight
+    console.log("🕊️ Preflight request accepted for:", origin);
+    return res.sendStatus(204);
   }
+
   next();
 });
 
 /* ---------------------------------------------------------------------- */
 /* Middleware setup                                                       */
 /* ---------------------------------------------------------------------- */
-app.use(bodyParser.json());
+app.use(bodyParser.json({ limit: "10mb" }));
 const upload = multer({ storage: multer.memoryStorage() });
 
 /* ---------------------------------------------------------------------- */
@@ -61,23 +66,24 @@ app.get("/", (req, res) => {
 });
 
 app.get("/status", async (req, res) => {
-  try {
-    const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
-    res.json({ success: true, mongoStatus: mongoState });
-  } catch (err) {
-    res.status(500).json({ success: false, message: "Status check failed", error: err.message });
-  }
+  const mongoState = mongoose.connection.readyState === 1 ? "Connected" : "Disconnected";
+  res.json({ success: true, mongoStatus: mongoState });
 });
 
 /* ---------------------------------------------------------------------- */
-/* Upload Endpoint                                                        */
+/* File Upload Endpoint                                                   */
 /* ---------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ success: false, error: "No file uploaded" });
+    if (!req.file) {
+      console.log("❌ No file uploaded");
+      return res.status(400).json({ success: false, error: "No file uploaded" });
+    }
 
     const jsonStr = req.file.buffer.toString("utf8").trim();
-    if (!jsonStr) return res.status(400).json({ success: false, error: "Empty JSON file" });
+    if (!jsonStr) {
+      return res.status(400).json({ success: false, error: "Empty JSON file" });
+    }
 
     let parsed;
     try {
@@ -102,7 +108,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
 });
 
 /* ---------------------------------------------------------------------- */
-/* Dashboard API Routes                                                   */
+/* Dashboard Protocol APIs                                                */
 /* ---------------------------------------------------------------------- */
 app.get("/api/protocol", async (req, res) => {
   try {
@@ -111,19 +117,6 @@ app.get("/api/protocol", async (req, res) => {
     res.json(doc.protocolJson);
   } catch {
     res.status(500).json({ message: "Error reading protocol data" });
-  }
-});
-
-app.post("/api/protocol", async (req, res) => {
-  try {
-    await Protocol.findOneAndUpdate(
-      {},
-      { protocolJson: req.body, updatedAt: new Date() },
-      { upsert: true }
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
   }
 });
 
