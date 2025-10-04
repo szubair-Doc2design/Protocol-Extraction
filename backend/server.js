@@ -6,61 +6,82 @@ const bodyParser = require("body-parser");
 const multer = require("multer");
 require("dotenv").config();
 
-const app = express();
-
-/* ------------------------------------ */
-/* CORS CONFIG                          */
-/* ------------------------------------ */
-// ✅ Allow your deployed Vercel app + local dev
-const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your live frontend
-  "http://localhost:3000", // local testing
-];
-
-app.use(
-  cors({
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true,
-  })
-);
-
-/* ------------------------------------ */
-/* MONGODB CONNECTION                   */
-/* ------------------------------------ */
 console.log("Loaded MONGO_URI:", process.env.MONGO_URI ? "✅ Found" : "❌ Missing");
 
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB connected"))
-  .catch((err) => console.error("❌ MongoDB connection error:", err));
-
-/* ------------------------------------ */
-/* MODELS                               */
-/* ------------------------------------ */
+// Models
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
 const InventoryDefaults = require("./models/InventoryDefaults");
 const DrugOrderingResupply = require("./models/DrugOrderingResupply");
 
-/* ------------------------------------ */
-/* ROUTES                               */
-/* ------------------------------------ */
+// Routes
 const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
+const app = express();
+app.use(cors());
 app.use(bodyParser.json());
+
+// ✅ MongoDB connection
+mongoose
+  .connect(process.env.MONGO_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
+  .then(() => console.log("✅ MongoDB connected"))
+  .catch((err) => console.error("❌ MongoDB connection error:", err));
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 /* ------------------------------------ */
-/* HEALTH CHECK                         */
+/* Health Check                         */
 /* ------------------------------------ */
 app.get("/", (req, res) => {
   res.send("✅ Backend is running successfully");
 });
 
 /* ------------------------------------ */
-/* JSON FILE UPLOAD                     */
+/* MongoDB Status Check (New Route)     */
+/* ------------------------------------ */
+app.get("/status", async (req, res) => {
+  try {
+    const dbState = mongoose.connection.readyState;
+    const states = ["Disconnected", "Connected", "Connecting", "Disconnecting"];
+    res.json({
+      success: true,
+      mongoStatus: states[dbState],
+      message: "Backend and MongoDB status check",
+    });
+  } catch (err) {
+    console.error("❌ Status check error:", err);
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/* ------------------------------------ */
+/* Direct JSON upload (for testing)     */
+/* ------------------------------------ */
+app.post("/upload", async (req, res) => {
+  try {
+    if (!req.body || Object.keys(req.body).length === 0) {
+      return res.status(400).json({ success: false, message: "Empty JSON body" });
+    }
+
+    await Protocol.findOneAndUpdate(
+      {},
+      { protocolJson: req.body, updatedAt: new Date() },
+      { upsert: true, new: true }
+    );
+
+    res.json({ success: true, message: "JSON uploaded successfully" });
+  } catch (err) {
+    console.error("Upload error:", err);
+    res.status(400).json({ success: false, message: "Invalid JSON data" });
+  }
+});
+
+/* ------------------------------------ */
+/* File Upload Endpoint (Frontend uses this) */
 /* ------------------------------------ */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
@@ -77,7 +98,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
     try {
       parsed = JSON.parse(jsonStr);
     } catch (e) {
-      console.error("❌ Invalid JSON:", e);
+      console.error("❌ JSON parse error:", e);
       return res.status(400).json({ success: false, error: "Invalid JSON format" });
     }
 
@@ -87,7 +108,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
       { upsert: true, new: true }
     );
 
-    console.log("✅ Protocol JSON uploaded successfully");
+    console.log("✅ JSON uploaded successfully:", parsed);
     res.json({ success: true, message: "Protocol JSON uploaded successfully" });
   } catch (err) {
     console.error("❌ Upload error:", err);
@@ -96,7 +117,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* PROTOCOL APIS                        */
+/* Dashboard Protocol APIs              */
 /* ------------------------------------ */
 app.get("/api/protocol", async (req, res) => {
   try {
@@ -135,7 +156,7 @@ app.post("/api/protocol/builtOn", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* RTSM INFO                            */
+/* RTSM Info Endpoints                  */
 /* ------------------------------------ */
 app.post("/api/rtsm-info", async (req, res) => {
   try {
@@ -160,7 +181,7 @@ app.get("/api/rtsm-info", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* ROLES & ACCESS                       */
+/* Roles and Access Endpoints           */
 /* ------------------------------------ */
 app.get("/api/roles-access", async (req, res) => {
   try {
@@ -189,7 +210,7 @@ app.post("/api/roles-access", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* INVENTORY DEFAULTS                   */
+/* Inventory Defaults Endpoints         */
 /* ------------------------------------ */
 app.get("/api/inventory-defaults", async (req, res) => {
   try {
@@ -216,12 +237,12 @@ app.post("/api/inventory-defaults", async (req, res) => {
 });
 
 /* ------------------------------------ */
-/* DRUG ORDERING & RESUPPLY             */
+/* Drug Ordering & Automated Resupply   */
 /* ------------------------------------ */
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
 /* ------------------------------------ */
-/* START SERVER                         */
+/* Start Server                         */
 /* ------------------------------------ */
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
