@@ -20,12 +20,10 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 
 const app = express();
 
-/* ------------------------------------ */
-/* ✅ CORS FIX — Allow frontend access   */
-/* ------------------------------------ */
+// ✅ FIXED CORS CONFIG — Allow Vercel Frontend + Localhost
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your Vercel frontend
-  "http://localhost:3000" // for local testing
+  "https://protocol-extraction-5gcv.vercel.app", // your deployed frontend
+  "http://localhost:3000", // for local testing
 ];
 
 app.use(
@@ -34,7 +32,7 @@ app.use(
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        console.warn("❌ Blocked CORS for origin:", origin);
+        console.warn("❌ Blocked by CORS:", origin);
         callback(new Error("CORS not allowed for this origin: " + origin));
       }
     },
@@ -44,12 +42,13 @@ app.use(
   })
 );
 
+// Handle preflight requests
+app.options("*", cors());
+
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-/* ------------------------------------ */
-/* ✅ MongoDB connection                */
-/* ------------------------------------ */
+// ✅ MongoDB connection
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
@@ -59,28 +58,7 @@ mongoose
 /* Health Check                         */
 /* ------------------------------------ */
 app.get("/", (req, res) => {
-  res.send("✅ Backend is running successfully");
-});
-
-/* ------------------------------------ */
-/* ✅ /status endpoint for testing Mongo */
-/* ------------------------------------ */
-app.get("/status", async (req, res) => {
-  try {
-    const mongoStates = ["Disconnected", "Connected", "Connecting", "Disconnecting"];
-    const mongoState = mongoStates[mongoose.connection.readyState] || "Unknown";
-    res.json({
-      success: true,
-      mongoStatus: mongoState,
-      message: "Backend and MongoDB status check",
-    });
-  } catch (err) {
-    res.status(500).json({
-      success: false,
-      message: "Status check failed",
-      error: err.message,
-    });
-  }
+  res.send("✅ Backend is running successfully (CORS fixed)");
 });
 
 /* ------------------------------------ */
@@ -128,21 +106,8 @@ app.get("/api/protocol", async (req, res) => {
   }
 });
 
-app.post("/api/protocol", async (req, res) => {
-  try {
-    await Protocol.findOneAndUpdate(
-      {},
-      { protocolJson: req.body, updatedAt: new Date() },
-      { upsert: true }
-    );
-    res.json({ success: true });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
-});
-
 /* ------------------------------------ */
-/* RTSM Info Endpoints                  */
+/* RTSM Info, Roles, Inventory, etc.    */
 /* ------------------------------------ */
 app.post("/api/rtsm-info", async (req, res) => {
   try {
@@ -162,9 +127,6 @@ app.get("/api/rtsm-info", async (req, res) => {
   }
 });
 
-/* ------------------------------------ */
-/* Roles and Access Endpoints           */
-/* ------------------------------------ */
 app.get("/api/roles-access", async (req, res) => {
   try {
     const doc = await RolesAccess.findOne().sort({ updatedAt: -1 });
@@ -189,9 +151,6 @@ app.post("/api/roles-access", async (req, res) => {
   }
 });
 
-/* ------------------------------------ */
-/* Inventory Defaults Endpoints         */
-/* ------------------------------------ */
 app.get("/api/inventory-defaults", async (req, res) => {
   try {
     const doc = await InventoryDefaults.findOne().sort({ updatedAt: -1 });
@@ -222,5 +181,5 @@ app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 /* ------------------------------------ */
 /* Start Server                         */
 /* ------------------------------------ */
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || 10000; // Render uses this port
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
