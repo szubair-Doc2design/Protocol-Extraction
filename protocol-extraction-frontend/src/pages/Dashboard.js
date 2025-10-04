@@ -9,10 +9,6 @@ import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
 
-// ✅ backend URL: uses env variable in Vercel, or localhost if running locally
-const BACKEND_URL =
-  process.env.BACKEND_URL || "http://localhost:4000";
-
 /** Safely parse JSON strings (also strips ``` fences if present) */
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
@@ -70,7 +66,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch(`${BACKEND_URL}/api/protocol`)
+    fetch(`/api/protocol`)
       .then((res) => {
         if (!res.ok) throw new Error("No protocol data");
         return res.json();
@@ -101,7 +97,7 @@ export default function Dashboard() {
     try {
       sessionStorage.setItem(SESSION_KEY, JSON.stringify(newProtocol));
     } catch {}
-    fetch(`${BACKEND_URL}/api/protocol`, {
+    fetch(`/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newProtocol),
@@ -110,42 +106,41 @@ export default function Dashboard() {
     });
   }
 
-  // ✅ Upload JSON file as raw JSON, not FormData
   function handleFileLoad(file) {
     if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      try {
-        const jsonData = JSON.parse(e.target.result);
-
-        const res = await fetch(`${BACKEND_URL}/api/protocol/upload`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(jsonData),
-        });
-
-        if (!res.ok) throw new Error("Upload failed");
-        const result = await res.json();
-
-        if (result.success) {
-          persistProtocol(jsonData);
-
-          const openObj = {};
-          Object.keys(jsonData).forEach((k) => (openObj[k] = true));
-          setPanelsOpen(openObj);
-
-          setSuccessMsg("✅ JSON uploaded successfully");
-        } else {
-          throw new Error(result.error || "Upload failed");
+    fetch(`/api/protocol/upload`, {
+      method: "POST",
+      body: formData,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const txt = await res.text();
+          throw new Error(txt || "Upload failed");
         }
-      } catch (err) {
+        return res.json();
+      })
+      .then((result) => {
+        if (result.success || /success/i.test(result.message || "")) {
+          return fetch(`/api/protocol`)
+            .then((r) => r.json())
+            .then((data) => {
+              const cleaned = normalizeProtocolData(data);
+              persistProtocol(cleaned);
+              const openObj = {};
+              Object.keys(cleaned).forEach((k) => (openObj[k] = true));
+              setPanelsOpen(openObj);
+              setSuccessMsg("✅ JSON uploaded successfully");
+            });
+        }
+        throw new Error(result.message || "Upload failed");
+      })
+      .catch((err) => {
         console.error("Upload error:", err);
         alert("Failed to upload JSON: " + err.message);
-      }
-    };
-
-    reader.readAsText(file);
+      });
   }
 
   function handleFileSelect(e) {
@@ -189,7 +184,7 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
-    fetch(`${BACKEND_URL}/api/protocol`, {
+    fetch(`/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -273,10 +268,7 @@ export default function Dashboard() {
         </div>
 
         <div style={{ display: "flex", gap: "10px" }}>
-          <button
-            className="btn accent"
-            onClick={() => fileInputRef.current?.click()}
-          >
+          <button className="btn accent" onClick={() => fileInputRef.current?.click()}>
             Upload JSON
           </button>
           <input
@@ -339,9 +331,7 @@ export default function Dashboard() {
               title={k}
               open={!!panelsOpen[k]}
               onToggle={() => togglePanel(k)}
-              onEdit={
-                k === "Schema" ? undefined : () => handleEditSection(k, protocol[k])
-              }
+              onEdit={k === "Schema" ? undefined : () => handleEditSection(k, protocol[k])}
               hideEdit={k === "Schema"}
             >
               {editingKey === k ? (
@@ -396,11 +386,7 @@ export default function Dashboard() {
           </div>
 
           <div style={{ marginTop: 24, textAlign: "center" }}>
-            <button
-              className="btn primary"
-              onClick={goToRtsm}
-              disabled={!builtOn}
-            >
+            <button className="btn primary" onClick={goToRtsm} disabled={!builtOn}>
               Required RTSM Info
             </button>
           </div>
@@ -410,7 +396,7 @@ export default function Dashboard() {
   );
 }
 
-/* Recursive Inline Editor */
+/* Recursive Inline Editor with Safe Path Update and Add Row */
 function InlineEditor({ sectionKey, initialData, onSave, onCancel }) {
   const [data, setData] = React.useState(() => deepClone(initialData));
 
@@ -424,13 +410,7 @@ function InlineEditor({ sectionKey, initialData, onSave, onCancel }) {
 
   function renderField(value, path) {
     if (Array.isArray(value)) {
-      const cols = Array.from(
-        new Set(
-          value.flatMap((r) =>
-            typeof r === "object" ? Object.keys(r) : []
-          )
-        )
-      );
+      const cols = Array.from(new Set(value.flatMap((r) => (typeof r === "object" ? Object.keys(r) : []))));
       return (
         <div style={{ marginLeft: 12 }}>
           <table className="table">
