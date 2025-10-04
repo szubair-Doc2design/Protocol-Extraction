@@ -7,6 +7,7 @@ require("dotenv").config();
 
 console.log("Loaded MONGO_URI:", process.env.MONGO_URI ? "✅ Found" : "❌ Missing");
 
+// Models
 const Protocol = require("./models/Protocol");
 const RtsmInfo = require("./models/RtsmInfo");
 const RolesAccess = require("./models/RolesAccess");
@@ -16,26 +17,31 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 const app = express();
 
 /* ---------------------------------------------------------------------- */
-/* ✅ MANUAL CORS HANDLING (works even if middleware fails)                */
+/* ✅ MANUAL CORS HANDLING + DEBUG LOGGING                                 */
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app", // your Vercel frontend
-  "http://localhost:3000" // for local testing
+  "https://protocol-extraction-5gcv.vercel.app", // your frontend on Vercel
+  "http://localhost:3000" // local development
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
+  console.log("🌐 Incoming request from origin:", origin || "No origin header");
+
   if (allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
   } else {
+    console.warn("⚠️  Origin not allowed by CORS:", origin);
     res.setHeader("Access-Control-Allow-Origin", "https://protocol-extraction-5gcv.vercel.app");
   }
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.setHeader("Access-Control-Allow-Credentials", "true");
 
-  // Handle preflight (OPTIONS) request
+  // Handle preflight OPTIONS requests
   if (req.method === "OPTIONS") {
+    console.log("🟢 Preflight request handled");
     return res.status(204).end();
   }
 
@@ -73,11 +79,14 @@ app.get("/status", async (req, res) => {
     res.status(500).json({ success: false, message: "Status check failed", error: err.message });
   }
 });
+
 /* ---------------------------------------------------------------------- */
-/* File Upload                                                            */
+/* File Upload Endpoint                                                   */
 /* ---------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
+    console.log("📦 File upload request received");
+
     if (!req.file)
       return res.status(400).json({ success: false, error: "No file uploaded" });
 
@@ -89,7 +98,7 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
     try {
       parsed = JSON.parse(jsonStr);
     } catch (e) {
-      console.error("❌ Invalid JSON:", e);
+      console.error("❌ Invalid JSON format:", e.message);
       return res.status(400).json({ success: false, error: "Invalid JSON format" });
     }
 
@@ -116,7 +125,7 @@ app.get("/api/protocol", async (req, res) => {
     if (!doc) return res.status(404).json({ message: "No protocol data found" });
     res.json(doc.protocolJson);
   } catch (err) {
-    console.error(err);
+    console.error("❌ Error reading protocol data:", err);
     res.status(500).json({ message: "Error reading protocol data" });
   }
 });
@@ -129,6 +138,7 @@ app.post("/api/rtsm-info", async (req, res) => {
     const saved = await RtsmInfo.create(req.body);
     res.json({ success: true, id: saved._id });
   } catch (err) {
+    console.error("❌ RTSM Save Error:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
@@ -138,6 +148,7 @@ app.get("/api/rtsm-info", async (req, res) => {
     const docs = await RtsmInfo.find({}).sort({ createdAt: -1 });
     res.json(docs);
   } catch (err) {
+    console.error("❌ RTSM Fetch Error:", err);
     res.status(500).json({ message: "Error fetching RTSM info" });
   }
 });
@@ -151,6 +162,7 @@ app.get("/api/roles-access", async (req, res) => {
     if (!doc) return res.status(404).json({ message: "No roles found" });
     res.json(doc);
   } catch (err) {
+    console.error("❌ Roles fetch error:", err);
     res.status(500).json({ message: "Error fetching roles" });
   }
 });
@@ -165,6 +177,7 @@ app.post("/api/roles-access", async (req, res) => {
     );
     res.json(updated);
   } catch (err) {
+    console.error("❌ Roles save error:", err);
     res.status(500).json({ message: "Error saving roles" });
   }
 });
@@ -175,6 +188,7 @@ app.get("/api/inventory-defaults", async (req, res) => {
     if (!doc) return res.status(404).json({ message: "No inventory found" });
     res.json(doc);
   } catch (err) {
+    console.error("❌ Inventory fetch error:", err);
     res.status(500).json({ message: "Error fetching inventory" });
   }
 });
@@ -187,6 +201,7 @@ app.post("/api/inventory-defaults", async (req, res) => {
     });
     res.json(updated);
   } catch (err) {
+    console.error("❌ Inventory save error:", err);
     res.status(500).json({ message: "Error saving inventory" });
   }
 });
