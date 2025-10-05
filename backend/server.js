@@ -21,28 +21,26 @@ const allowedOrigins = [
   "https://protocol-extraction.vercel.app",
   "http://localhost:3000"
 ];
+// Regex to match all protocol-extraction* Vercel preview deploys
+const vercelPreviewRegex = /^https:\/\/protocol-extraction[a-zA-Z0-9-]*-szubairs-projects\.vercel\.app$/;
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  console.log("🌐 Incoming request from origin:", origin || "undefined");
-
-  if (!origin || allowedOrigins.includes(origin)) {
-    res.setHeader(
-      "Access-Control-Allow-Origin",
-      origin || "https://protocol-extraction.vercel.app"
-    );
+  if (
+    !origin ||
+    allowedOrigins.includes(origin) ||
+    vercelPreviewRegex.test(origin)
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", origin || allowedOrigins[0]);
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Credentials", "true");
-    if (req.method === "OPTIONS") {
-      return res.sendStatus(204);
-    }
-    next();
-  } else {
-    console.log("❌ Origin not allowed by CORS:", origin);
-    return res.status(403).json({ error: "CORS not allowed for this origin" });
+    if (req.method === "OPTIONS") return res.sendStatus(204);
+    return next();
   }
+  return res.status(403).json({ error: "CORS not allowed for this origin" });
 });
+
 
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
