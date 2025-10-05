@@ -8,18 +8,15 @@ import { useNavigate } from "react-router-dom";
 import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
-// Point this to your backend
 const API_BASE = "https://protocol-extraction.onrender.com";
 
-/** Safely parse JSON strings (also strips ``` blocks) */
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
   let s = val.trim();
   if (!s) return null;
-  // strip triple-backtick fences if present
   if (s.startsWith("```")) {
-    s = s.replace(/^```[\s\S]*?\n?/, ""); // remove opening fence + optional language
-    s = s.replace(/\n?```$/, ""); // remove trailing fence
+    s = s.replace(/^```[\s\S]*?\n?/, "");
+    s = s.replace(/\n?```$/, "");
     s = s.trim();
   }
   try {
@@ -29,7 +26,6 @@ function tryParseJsonString(val) {
   }
 }
 
-/** Recursively normalize embedded JSON strings */
 function normalizeProtocolData(obj) {
   if (Array.isArray(obj)) return obj.map(normalizeProtocolData);
   if (obj && typeof obj === "object") {
@@ -47,7 +43,6 @@ function normalizeProtocolData(obj) {
   return obj;
 }
 
-/** Force columns for Visit Schedule–like keys */
 function columnsForKey(key) {
   const k = (key || "").toLowerCase().replace(/\s+/g, "");
   if (
@@ -59,116 +54,119 @@ function columnsForKey(key) {
   return null;
 }
 
-/** Simple JSON editor modal (inline) */
-function EditPanel({
-  sectionKey,
-  initialValue,
-  onCancel,
-  onSave,
-}) {
-  const [text, setText] = useState(() =>
-    typeof initialValue === "string" ? initialValue : JSON.stringify(initialValue, null, 2)
+// Inline editable section
+function InlineEditSection({ value, onSave, onCancel }) {
+  const [data, setData] = useState(() =>
+    typeof value === "string" ? value : deepClone(value)
   );
-  const [showBoolEditor, setShowBoolEditor] = useState(true);
-  const [parseError, setParseError] = useState("");
 
-  // Build a top-level boolean map if object
-  function extractTopLevelBooleans() {
-    try {
-      const obj = JSON.parse(text);
-      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-        const map = {};
-        for (const [k, v] of Object.entries(obj)) {
-          if (typeof v === "boolean" || /^(yes|no)$/i.test(String(v))) {
-            map[k] = typeof v === "boolean" ? v : /^yes$/i.test(String(v));
-          }
-        }
-        return map;
-      }
-    } catch {}
-    return {};
-  }
+  const handleInputChange = (key, val) => {
+    setData((prev) => ({ ...prev, [key]: val }));
+  };
 
-  const [boolMap, setBoolMap] = useState(extractTopLevelBooleans());
+  const handleBoolToggle = (key) => {
+    setData((prev) => ({
+      ...prev,
+      [key]:
+        typeof prev[key] === "boolean"
+          ? !prev[key]
+          : /^yes$/i.test(String(prev[key]))
+          ? "No"
+          : "Yes",
+    }));
+  };
 
-  // whenever text changes, refresh bool map (best-effort)
-  useEffect(() => {
-    setBoolMap(extractTopLevelBooleans());
-    // reset parse error
-    setParseError("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text]);
+  const handleSave = () => {
+    onSave(data);
+  };
 
-  function toggleBool(key) {
-    const next = { ...boolMap, [key]: !boolMap[key] };
-    setBoolMap(next);
-    // reflect back into JSON text if possible
-    try {
-      const obj = JSON.parse(text);
-      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
-        obj[key] = next[key];
-        setText(JSON.stringify(obj, null, 2));
-      }
-    } catch {
-      // ignore
-    }
-  }
-
-  function handleSaveClick() {
-    // try to parse JSON
-    let parsed = tryParseJsonString(text);
-    if (parsed === null) {
-      try {
-        parsed = JSON.parse(text);
-      } catch (err) {
-        setParseError("Invalid JSON: " + err.message);
-        return;
-      }
-    }
-    onSave(parsed);
+  // Render nicely formatted object
+  if (typeof data === "object" && !Array.isArray(data)) {
+    return (
+      <div style={{ padding: "12px", background: "#fafafa", borderRadius: 6 }}>
+        {Object.entries(data).map(([key, val]) => {
+          const isBool =
+            typeof val === "boolean" || /^(yes|no)$/i.test(String(val));
+          return (
+            <div
+              key={key}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "6px 0",
+                borderBottom: "1px solid #eee",
+              }}
+            >
+              <div style={{ fontWeight: 500 }}>{key}</div>
+              {isBool ? (
+                <label className="switch">
+                  <input
+                    type="checkbox"
+                    checked={
+                      typeof val === "boolean"
+                        ? val
+                        : /^yes$/i.test(String(val))
+                    }
+                    onChange={() => handleBoolToggle(key)}
+                  />
+                  <span className="slider round"></span>
+                </label>
+              ) : (
+                <input
+                  type="text"
+                  value={val}
+                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  style={{
+                    width: "50%",
+                    padding: "4px 6px",
+                    borderRadius: 4,
+                    border: "1px solid #ccc",
+                  }}
+                />
+              )}
+            </div>
+          );
+        })}
+        <div
+          style={{
+            marginTop: 10,
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+          }}
+        >
+          <button className="btn" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn primary" onClick={handleSave}>
+            Save
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: 12, borderTop: "1px solid #eee" }}>
-      <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <strong>Editing: {sectionKey}</strong>
-        <div style={{ display: "flex", gap: 8 }}>
-          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            <input type="checkbox" checked={showBoolEditor} onChange={() => setShowBoolEditor((s) => !s)} />
-            Show boolean switches
-          </label>
-        </div>
-      </div>
-
-      {showBoolEditor && Object.keys(boolMap).length > 0 && (
-        <div style={{ marginBottom: 8 }}>
-          <div style={{ marginBottom: 6, fontSize: 13, color: "#333" }}>Top-level yes/no fields</div>
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            {Object.keys(boolMap).map((b) => (
-              <label key={b} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fafafa", padding: 6, borderRadius: 4 }}>
-                <input type="checkbox" checked={!!boolMap[b]} onChange={() => toggleBool(b)} />
-                {b}
-              </label>
-            ))}
-          </div>
-        </div>
-      )}
-
+    <div style={{ marginTop: 6 }}>
       <textarea
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        rows={12}
-        style={{ width: "100%", fontFamily: "monospace", fontSize: 13, padding: 8 }}
+        value={data}
+        onChange={(e) => setData(e.target.value)}
+        rows={8}
+        style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
       />
-
-      {parseError && <div style={{ color: "crimson", marginTop: 8 }}>{parseError}</div>}
-
-      <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button className="btn" onClick={onCancel}>Cancel</button>
-        <button
-          className="btn primary"
-          onClick={handleSaveClick}
-        >
+      <div
+        style={{
+          marginTop: 10,
+          display: "flex",
+          justifyContent: "flex-end",
+          gap: 8,
+        }}
+      >
+        <button className="btn" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn primary" onClick={handleSave}>
           Save
         </button>
       </div>
@@ -274,7 +272,6 @@ export default function Dashboard() {
 
   function handleFileSelect(e) {
     handleFileLoad(e.target.files?.[0]);
-    // clear the input so same file can be reselected later
     e.target.value = "";
   }
 
@@ -308,7 +305,6 @@ export default function Dashboard() {
   }
 
   function clearJson() {
-    // Reset to upload step
     setProtocol(null);
     setPanelsOpen({});
     setEditingKey(null);
@@ -316,15 +312,12 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
-    // Post an empty payload to backend to clear server copy (keeps behavior)
     fetch(`${API_BASE}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
       mode: "cors",
-    }).catch(() => {
-      // ignore
-    });
+    }).catch(() => {});
   }
 
   function handleEditSection(sectionKey, value) {
@@ -335,7 +328,6 @@ export default function Dashboard() {
 
   function handleSaveEditing(sectionKey, updated) {
     const next = deepClone(protocol || {});
-    // Ensure we do not lose data for other sections
     next[sectionKey] = updated;
     persistProtocol(next);
     setEditingKey(null);
@@ -343,6 +335,19 @@ export default function Dashboard() {
   }
 
   function renderSection(value, keyName) {
+    if (editingKey === keyName) {
+      return (
+        <InlineEditSection
+          value={editingInitial}
+          onSave={(updated) => handleSaveEditing(keyName, updated)}
+          onCancel={() => {
+            setEditingKey(null);
+            setEditingInitial(null);
+          }}
+        />
+      );
+    }
+
     if (Array.isArray(value)) {
       return <TablePanel rows={value} columns={columnsForKey(keyName)} />;
     }
@@ -376,7 +381,6 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Header */}
       <div
         style={{
           background: "linear-gradient(to right, #1a3c6e, #2196f3)",
@@ -515,23 +519,6 @@ export default function Dashboard() {
             <button className="btn primary" onClick={goToRtsm} disabled={!builtOn}>
               Required RTSM Info
             </button>
-          </div>
-        </div>
-      )}
-
-      {/* Inline editor shown when editingKey is set */}
-      {editingKey && (
-        <div style={{ position: "fixed", left: 16, right: 16, bottom: 16, zIndex: 80 }}>
-          <div style={{ maxWidth: 900, margin: "0 auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", background: "#fff", borderRadius: 8 }}>
-            <EditPanel
-              sectionKey={editingKey}
-              initialValue={editingInitial}
-              onCancel={() => {
-                setEditingKey(null);
-                setEditingInitial(null);
-              }}
-              onSave={(updated) => handleSaveEditing(editingKey, updated)}
-            />
           </div>
         </div>
       )}
