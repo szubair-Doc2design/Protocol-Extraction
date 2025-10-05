@@ -20,48 +20,39 @@ const app = express();
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
   "https://protocol-extraction-5gcv.vercel.app",
-  "http://localhost:3000",
+  "http://localhost:3000"
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   console.log("🌐 Incoming request from origin:", origin || "undefined");
-
-  // Allow undefined origins (like from serverless/Vercel) as fallback
+  
   if (!origin || allowedOrigins.includes(origin)) {
     res.setHeader(
       "Access-Control-Allow-Origin",
       origin || "https://protocol-extraction-5gcv.vercel.app"
     );
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(204);
+    }
+    next();
   } else {
     console.log("❌ Origin not allowed by CORS:", origin);
     return res.status(403).json({ error: "CORS not allowed for this origin" });
   }
-
-  res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.setHeader("Access-Control-Allow-Credentials", "true");
-
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-  next();
 });
 
 app.use(bodyParser.json());
 const upload = multer({ storage: multer.memoryStorage() });
 
-/* ---------------------------------------------------------------------- */
-/* MongoDB Connection                                                     */
-/* ---------------------------------------------------------------------- */
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB connected"))
   .catch((err) => console.error("❌ MongoDB connection error:", err));
 
-/* ---------------------------------------------------------------------- */
-/* Health Check Routes                                                    */
-/* ---------------------------------------------------------------------- */
 app.get("/", (req, res) => res.send("✅ Backend is running successfully"));
 
 app.get("/status", async (req, res) => {
@@ -69,13 +60,10 @@ app.get("/status", async (req, res) => {
   res.json({
     success: true,
     mongoStatus: mongoState,
-    message: "Backend and MongoDB status check",
+    message: "Backend and MongoDB status check"
   });
 });
 
-/* ---------------------------------------------------------------------- */
-/* File Upload API                                                        */
-/* ---------------------------------------------------------------------- */
 app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   try {
     if (!req.file)
@@ -100,9 +88,6 @@ app.post("/api/protocol/upload", upload.single("file"), async (req, res) => {
   }
 });
 
-/* ---------------------------------------------------------------------- */
-/* Other APIs                                                             */
-/* ---------------------------------------------------------------------- */
 app.get("/api/protocol", async (req, res) => {
   const doc = await Protocol.findOne().sort({ updatedAt: -1 }).lean();
   if (!doc) return res.status(404).json({ message: "No protocol data found" });
@@ -151,8 +136,5 @@ app.post("/api/inventory-defaults", async (req, res) => {
 
 app.use("/api/drug-ordering-resupply", drugOrderingResupplyRoutes);
 
-/* ---------------------------------------------------------------------- */
-/* Start Server                                                           */
-/* ---------------------------------------------------------------------- */
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => console.log(`✅ Backend running on port ${PORT}`));
