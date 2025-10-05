@@ -18,7 +18,7 @@ const app = express();
 /* ✅ Enhanced CORS handling — allows real Vercel dashboard origin         */
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv-ejz66ohpk-szubairs-projects.vercel.app/",
+  "https://protocol-extraction-5gcv-ejz66ohpk-szubairs-projects.vercel.app",
   "http://localhost:3000"
 ];
 
@@ -29,7 +29,7 @@ app.use((req, res, next) => {
   if (!origin || allowedOrigins.includes(origin)) {
     res.setHeader(
       "Access-Control-Allow-Origin",
-      origin || "https://protocol-extraction-5gcv-ejz66ohpk-szubairs-projects.vercel.app/"
+      origin || "https://protocol-extraction-5gcv-ejz66ohpk-szubairs-projects.vercel.app"
     );
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
