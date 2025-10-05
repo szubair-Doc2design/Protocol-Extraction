@@ -8,17 +8,19 @@ import { useNavigate } from "react-router-dom";
 import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
-// ✅ Point this to your backend (not protocol-backend, use exact hostname you tested)
+// Point this to your backend
 const API_BASE = "https://protocol-extraction.onrender.com";
 
-/** Safely parse JSON strings (also strips ```
+/** Safely parse JSON strings (also strips ``` blocks) */
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
   let s = val.trim();
   if (!s) return null;
+  // strip triple-backtick fences if present
   if (s.startsWith("```")) {
-    s = s.replace(/^```
-    s = s.replace(/\n?```$/, "");
+    s = s.replace(/^```[\s\S]*?\n?/, ""); // remove opening fence + optional language
+    s = s.replace(/\n?```$/, ""); // remove trailing fence
+    s = s.trim();
   }
   try {
     return JSON.parse(s);
@@ -57,6 +59,123 @@ function columnsForKey(key) {
   return null;
 }
 
+/** Simple JSON editor modal (inline) */
+function EditPanel({
+  sectionKey,
+  initialValue,
+  onCancel,
+  onSave,
+}) {
+  const [text, setText] = useState(() =>
+    typeof initialValue === "string" ? initialValue : JSON.stringify(initialValue, null, 2)
+  );
+  const [showBoolEditor, setShowBoolEditor] = useState(true);
+  const [parseError, setParseError] = useState("");
+
+  // Build a top-level boolean map if object
+  function extractTopLevelBooleans() {
+    try {
+      const obj = JSON.parse(text);
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        const map = {};
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === "boolean" || /^(yes|no)$/i.test(String(v))) {
+            map[k] = typeof v === "boolean" ? v : /^yes$/i.test(String(v));
+          }
+        }
+        return map;
+      }
+    } catch {}
+    return {};
+  }
+
+  const [boolMap, setBoolMap] = useState(extractTopLevelBooleans());
+
+  // whenever text changes, refresh bool map (best-effort)
+  useEffect(() => {
+    setBoolMap(extractTopLevelBooleans());
+    // reset parse error
+    setParseError("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [text]);
+
+  function toggleBool(key) {
+    const next = { ...boolMap, [key]: !boolMap[key] };
+    setBoolMap(next);
+    // reflect back into JSON text if possible
+    try {
+      const obj = JSON.parse(text);
+      if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+        obj[key] = next[key];
+        setText(JSON.stringify(obj, null, 2));
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleSaveClick() {
+    // try to parse JSON
+    let parsed = tryParseJsonString(text);
+    if (parsed === null) {
+      try {
+        parsed = JSON.parse(text);
+      } catch (err) {
+        setParseError("Invalid JSON: " + err.message);
+        return;
+      }
+    }
+    onSave(parsed);
+  }
+
+  return (
+    <div style={{ padding: 12, borderTop: "1px solid #eee" }}>
+      <div style={{ marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <strong>Editing: {sectionKey}</strong>
+        <div style={{ display: "flex", gap: 8 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <input type="checkbox" checked={showBoolEditor} onChange={() => setShowBoolEditor((s) => !s)} />
+            Show boolean switches
+          </label>
+        </div>
+      </div>
+
+      {showBoolEditor && Object.keys(boolMap).length > 0 && (
+        <div style={{ marginBottom: 8 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: "#333" }}>Top-level yes/no fields</div>
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+            {Object.keys(boolMap).map((b) => (
+              <label key={b} style={{ display: "flex", alignItems: "center", gap: 6, background: "#fafafa", padding: 6, borderRadius: 4 }}>
+                <input type="checkbox" checked={!!boolMap[b]} onChange={() => toggleBool(b)} />
+                {b}
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <textarea
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        rows={12}
+        style={{ width: "100%", fontFamily: "monospace", fontSize: 13, padding: 8 }}
+      />
+
+      {parseError && <div style={{ color: "crimson", marginTop: 8 }}>{parseError}</div>}
+
+      <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+        <button className="btn" onClick={onCancel}>Cancel</button>
+        <button
+          className="btn primary"
+          onClick={handleSaveClick}
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const [protocol, setProtocol] = useState(null);
   const [panelsOpen, setPanelsOpen] = useState({});
@@ -67,7 +186,6 @@ export default function Dashboard() {
   const fileInputRef = useRef();
   const navigate = useNavigate();
 
-  // ✅ Fetch protocol data on load
   useEffect(() => {
     fetch(`${API_BASE}/api/protocol`, { mode: "cors" })
       .then((res) => {
@@ -95,6 +213,12 @@ export default function Dashboard() {
       });
   }, []);
 
+  useEffect(() => {
+    if (!successMsg) return;
+    const t = setTimeout(() => setSuccessMsg(""), 3500);
+    return () => clearTimeout(t);
+  }, [successMsg]);
+
   function persistProtocol(newProtocol) {
     setProtocol(newProtocol);
     try {
@@ -110,18 +234,15 @@ export default function Dashboard() {
     });
   }
 
-  /** ✅ Handle file upload */
   function handleFileLoad(file) {
     if (!file) return;
     const formData = new FormData();
     formData.append("file", file);
 
-    // ✅ Do NOT set headers for FormData (browser will do it)
     fetch(`${API_BASE}/api/protocol/upload`, {
       method: "POST",
       body: formData,
       mode: "cors",
-      // No custom headers!
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -147,12 +268,14 @@ export default function Dashboard() {
       })
       .catch((err) => {
         console.error("Upload error:", err);
-        alert("Failed to upload JSON: " + err.message);
+        alert("Failed to upload JSON: " + (err?.message || err));
       });
   }
 
   function handleFileSelect(e) {
     handleFileLoad(e.target.files?.[0]);
+    // clear the input so same file can be reselected later
+    e.target.value = "";
   }
 
   function onDrop(e) {
@@ -185,6 +308,7 @@ export default function Dashboard() {
   }
 
   function clearJson() {
+    // Reset to upload step
     setProtocol(null);
     setPanelsOpen({});
     setEditingKey(null);
@@ -192,11 +316,14 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
+    // Post an empty payload to backend to clear server copy (keeps behavior)
     fetch(`${API_BASE}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
       mode: "cors",
+    }).catch(() => {
+      // ignore
     });
   }
 
@@ -208,6 +335,7 @@ export default function Dashboard() {
 
   function handleSaveEditing(sectionKey, updated) {
     const next = deepClone(protocol || {});
+    // Ensure we do not lose data for other sections
     next[sectionKey] = updated;
     persistProtocol(next);
     setEditingKey(null);
@@ -221,7 +349,7 @@ export default function Dashboard() {
     if (value && typeof value === "object") {
       return <KeyValuePanel obj={value} />;
     }
-    return <div>{value}</div>;
+    return <div>{String(value)}</div>;
   }
 
   const stats = protocol ? countFields(protocol) : { total: 0, filled: 0 };
@@ -365,7 +493,8 @@ export default function Dashboard() {
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <input
-                type="checkbox"
+                type="radio"
+                name="builtOn"
                 checked={builtOn === "Pulse"}
                 onChange={() => setBuiltOn("Pulse")}
               />
@@ -373,7 +502,8 @@ export default function Dashboard() {
             </label>
             <label style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <input
-                type="checkbox"
+                type="radio"
+                name="builtOn"
                 checked={builtOn === "Elosity"}
                 onChange={() => setBuiltOn("Elosity")}
               />
@@ -385,6 +515,23 @@ export default function Dashboard() {
             <button className="btn primary" onClick={goToRtsm} disabled={!builtOn}>
               Required RTSM Info
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline editor shown when editingKey is set */}
+      {editingKey && (
+        <div style={{ position: "fixed", left: 16, right: 16, bottom: 16, zIndex: 80 }}>
+          <div style={{ maxWidth: 900, margin: "0 auto", boxShadow: "0 8px 24px rgba(0,0,0,0.12)", background: "#fff", borderRadius: 8 }}>
+            <EditPanel
+              sectionKey={editingKey}
+              initialValue={editingInitial}
+              onCancel={() => {
+                setEditingKey(null);
+                setEditingInitial(null);
+              }}
+              onSave={(updated) => handleSaveEditing(editingKey, updated)}
+            />
           </div>
         </div>
       )}
