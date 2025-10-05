@@ -1,4 +1,3 @@
-// backend/server.js
 const express = require("express");
 const mongoose = require("mongoose");
 const bodyParser = require("body-parser");
@@ -16,21 +15,21 @@ const drugOrderingResupplyRoutes = require("./routes/drugOrderingResupply");
 const app = express();
 
 /* ---------------------------------------------------------------------- */
-/* ✅ Enhanced CORS handling — works even when Origin is undefined         */
+/* ✅ Enhanced CORS handling — allows real Vercel dashboard origin         */
 /* ---------------------------------------------------------------------- */
 const allowedOrigins = [
-  "https://protocol-extraction-5gcv.vercel.app",
+  "https://protocol-extraction-5gcv-11vhse4v5-szubairs-projects.vercel.app",
   "http://localhost:3000"
 ];
 
 app.use((req, res, next) => {
   const origin = req.headers.origin;
   console.log("🌐 Incoming request from origin:", origin || "undefined");
-  
+
   if (!origin || allowedOrigins.includes(origin)) {
     res.setHeader(
       "Access-Control-Allow-Origin",
-      origin || "https://protocol-extraction-5gcv.vercel.app"
+      origin || "https://protocol-extraction-5gcv-11vhse4v5-szubairs-projects.vercel.app"
     );
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");

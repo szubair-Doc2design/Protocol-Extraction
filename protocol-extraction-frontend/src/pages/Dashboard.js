@@ -8,15 +8,16 @@ import { useNavigate } from "react-router-dom";
 import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
+// ✅ Point this to your backend (not protocol-backend, use exact hostname you tested)
 const API_BASE = "https://protocol-extraction.onrender.com";
 
-/** Safely parse JSON strings (also strips ``` fences if present) */
+/** Safely parse JSON strings (also strips ```
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
   let s = val.trim();
   if (!s) return null;
   if (s.startsWith("```")) {
-    s = s.replace(/^```[a-zA-Z0-9_-]*\n?/, "");
+    s = s.replace(/^```
     s = s.replace(/\n?```$/, "");
   }
   try {
@@ -68,7 +69,7 @@ export default function Dashboard() {
 
   // ✅ Fetch protocol data on load
   useEffect(() => {
-    fetch(`${API_BASE}/api/protocol`, { mode: "cors" }) // ✅ Added CORS mode
+    fetch(`${API_BASE}/api/protocol`, { mode: "cors" })
       .then((res) => {
         if (!res.ok) throw new Error("No protocol data");
         return res.json();
@@ -103,7 +104,7 @@ export default function Dashboard() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newProtocol),
-      mode: "cors", // ✅ Added CORS mode
+      mode: "cors",
     }).then((res) => {
       if (res.ok) setSuccessMsg("✅ Protocol data saved to backend");
     });
@@ -115,10 +116,12 @@ export default function Dashboard() {
     const formData = new FormData();
     formData.append("file", file);
 
+    // ✅ Do NOT set headers for FormData (browser will do it)
     fetch(`${API_BASE}/api/protocol/upload`, {
       method: "POST",
       body: formData,
-      mode: "cors", // ✅ Added CORS mode
+      mode: "cors",
+      // No custom headers!
     })
       .then(async (res) => {
         if (!res.ok) {
@@ -129,7 +132,7 @@ export default function Dashboard() {
       })
       .then((result) => {
         if (result.success || /success/i.test(result.message || "")) {
-          return fetch(`${API_BASE}/api/protocol`, { mode: "cors" }) // ✅ Added CORS mode
+          return fetch(`${API_BASE}/api/protocol`, { mode: "cors" })
             .then((r) => r.json())
             .then((data) => {
               const cleaned = normalizeProtocolData(data);
@@ -193,7 +196,7 @@ export default function Dashboard() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
-      mode: "cors", // ✅ Added CORS mode
+      mode: "cors",
     });
   }
 
