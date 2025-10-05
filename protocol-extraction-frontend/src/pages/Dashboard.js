@@ -85,35 +85,131 @@ function columnsForKey(key) {
   return null;
 }
 
+/** Replace placeholder values (including "?") with TBC-Client for display */
+function normalizeUnknownForDisplay(val) {
+  if (val === null || val === undefined) return "TBC-Client";
+  if (typeof val === "string" && val.trim() === "") return "TBC-Client";
+  if (typeof val === "string" && val.trim() === "?") return "TBC-Client";
+  // preserve existing booleans and numbers and arrays/objects
+  return val;
+}
+
+/** Transform object for display:
+ *  - replace unknowns with TBC-Client
+ *  - apply desired key ordering for General section
+ */
+function transformObjectForDisplay(obj, sectionKey) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) return obj;
+  const out = {};
+  // requested ordering for General:
+  const generalOrder = [
+    "Client Name",
+    "Protocol",
+    "Protocol Description",
+    "Study Blind Type",
+    "Most Recent Protocol Version Utilized to Generate Requirements",
+    "Is this an Extension Study",
+    "Is this a Rollover Study",
+    "Open Label",
+  ];
+
+  // create map of keys -> values (with nested normalization)
+  const normalizedMap = {};
+  Object.entries(obj).forEach(([k, v]) => {
+    if (typeof v === "string") {
+      const parsed = tryParseJsonString(v);
+      normalizedMap[k] = parsed !== null ? normalizeProtocolData(parsed) : v;
+    } else {
+      normalizedMap[k] = v;
+    }
+  });
+
+  // If General, add keys in requested order first (if present)
+  if (sectionKey === "General") {
+    for (const key of generalOrder) {
+      if (Object.prototype.hasOwnProperty.call(normalizedMap, key)) {
+        // apply unknown replacement for primitives
+        const val = normalizedMap[key];
+        out[key] = typeof val === "object" && val !== null ? val : normalizeUnknownForDisplay(val);
+      }
+    }
+  }
+
+  // then append remaining keys alphabetically
+  const remainingKeys = Object.keys(normalizedMap).filter((k) => !(sectionKey === "General" && generalOrder.includes(k)));
+  remainingKeys.sort((a, b) => a.localeCompare(b));
+  for (const key of remainingKeys) {
+    const val = normalizedMap[key];
+    out[key] = typeof val === "object" && val !== null ? val : normalizeUnknownForDisplay(val);
+  }
+
+  return out;
+}
+
 /**
  * Inline editor used for section-level editing.
  * - Shows editable key/value rows for top-level objects
  * - boolean / Yes/No appear as toggles
  * - nested objects/arrays show a small preview and an "Edit JSON" button that opens an inline textarea for that field
- * - arrays of objects can be edited via the nested editor
+ * - arrays of objects can be edited via per-item edit or as full-array JSON
  */
-function InlineEditSection({ value, onSave, onCancel }) {
-  // If `value` is a JSON-looking string, parse it so the UI is object-based
+function InlineEditSection({ value, onSave, onCancel, sectionKey }) {
+  // Parse possible JSON-like string values so we edit actual objects where possible
   const initialParsed = tryParseJsonString(value);
   const initial = initialParsed !== null ? deepClone(initialParsed) : (typeof value === "object" && value !== null ? deepClone(value) : value);
 
   const [data, setData] = useState(initial);
-  const [nestedKey, setNestedKey] = useState(null);
+  const [editingNested, setEditingNested] = useState(null); // either { key } or { index } for array items
   const [nestedText, setNestedText] = useState("");
 
-  // Open nested JSON editor for key
-  function openNestedEditor(key) {
-    setNestedKey(key);
+  // Helpers
+  function updateField(key, val) {
+    setData((prev) => ({ ...prev, [key]: val }));
+  }
+  function toggleBoolField(key) {
+    const cur = data[key];
+    if (typeof cur === "boolean") {
+      updateField(key, !cur);
+    } else if (typeof cur === "string" && /^(yes|no)$/i.test(cur)) {
+      updateField(key, /^yes$/i.test(cur) ? "No" : "Yes");
+    } else {
+      updateField(key, !cur);
+    }
+  }
+
+  /* Nested editing functions */
+  function openNestedEditorForKey(key) {
+    setEditingNested({ type: "key", key });
     const payload = data[key];
     setNestedText(JSON.stringify(payload, null, 2));
   }
 
+  function openNestedEditorForArrayIndex(index) {
+    setEditingNested({ type: "index", index });
+    const payload = data[index];
+    setNestedText(JSON.stringify(payload, null, 2));
+  }
+
+  function openNestedEditorForWholeArray() {
+    setEditingNested({ type: "array" });
+    setNestedText(JSON.stringify(data, null, 2));
+  }
+
   function saveNestedEditor() {
     try {
-      // attempt parse tolerant
       const parsed = tryParseJsonString(nestedText) ?? JSON.parse(nestedText);
-      setData((prev) => ({ ...prev, [nestedKey]: parsed }));
-      setNestedKey(null);
+      if (editingNested?.type === "key") {
+        setData((prev) => ({ ...prev, [editingNested.key]: parsed }));
+      } else if (editingNested?.type === "index") {
+        setData((prev) => {
+          const copy = Array.isArray(prev) ? [...prev] : [];
+          copy[editingNested.index] = parsed;
+          return copy;
+        });
+      } else if (editingNested?.type === "array") {
+        setData(parsed);
+      }
+      setEditingNested(null);
       setNestedText("");
     } catch (err) {
       alert("Invalid JSON: " + (err?.message || err));
@@ -121,47 +217,76 @@ function InlineEditSection({ value, onSave, onCancel }) {
   }
 
   function cancelNestedEditor() {
-    setNestedKey(null);
+    setEditingNested(null);
     setNestedText("");
-  }
-
-  function handleInputChange(key, raw) {
-    // keep as string; preserve original if it was a number? keeping string is safe for now
-    setData((prev) => ({ ...prev, [key]: raw }));
-  }
-
-  function handleBoolToggle(key) {
-    const cur = data[key];
-    if (typeof cur === "boolean") {
-      setData((prev) => ({ ...prev, [key]: !cur }));
-    } else if (typeof cur === "string" && /^(yes|no)$/i.test(cur)) {
-      const next = /^yes$/i.test(cur) ? "No" : "Yes";
-      setData((prev) => ({ ...prev, [key]: next }));
-    } else {
-      // fallback: set boolean toggle based on truthiness
-      setData((prev) => ({ ...prev, [key]: !prev[key] }));
-    }
   }
 
   function handleTopSave() {
     onSave(data);
   }
 
-  // If the entire section is an array, allow full-array edit inline
+  // If the entire section is an array
   if (Array.isArray(data)) {
+    // show per-item summaries, edit buttons, and also "Edit JSON" for full array
     return (
       <div style={{ padding: 12, background: "#fafafa", borderRadius: 6 }}>
         <div style={{ marginBottom: 10 }}>
           <strong>Array editor ({data.length} items)</strong>
         </div>
-        <div style={{ marginBottom: 8 }}>
-          <button className="btn" onClick={() => { setNestedKey("__array__"); setNestedText(JSON.stringify(data, null, 2)); }}>
-            Edit JSON
-          </button>
+
+        <div style={{ display: "grid", gap: 12 }}>
+          {data.map((item, idx) => (
+            <div key={idx} style={{ padding: 8, border: "1px solid #eee", borderRadius: 6, background: "#fff" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontWeight: 600 }}>Item {idx + 1}</div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn small" onClick={() => openNestedEditorForArrayIndex(idx)}>Edit</button>
+                  <button
+                    className="btn small danger"
+                    onClick={() =>
+                      setData((prev) => {
+                        const copy = [...prev];
+                        copy.splice(idx, 1);
+                        return copy;
+                      })
+                    }
+                  >
+                    Remove
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                {typeof item === "object" && item !== null ? (
+                  // show a KeyValuePanel preview — transform unknowns for display
+                  <KeyValuePanel obj={transformObjectForDisplay(item, sectionKey)} />
+                ) : (
+                  <div>{String(normalizeUnknownForDisplay(item))}</div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {nestedKey === "__array__" && (
-          <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
+          <button
+            className="btn"
+            onClick={() =>
+              setData((prev) => {
+                const copy = Array.isArray(prev) ? [...prev] : [];
+                copy.push({});
+                return copy;
+              })
+            }
+          >
+            Add item
+          </button>
+
+          <button className="btn" onClick={openNestedEditorForWholeArray}>Edit JSON</button>
+        </div>
+
+        {editingNested && (
+          <div style={{ marginTop: 12 }}>
             <textarea
               rows={12}
               value={nestedText}
@@ -170,29 +295,20 @@ function InlineEditSection({ value, onSave, onCancel }) {
             />
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
               <button className="btn" onClick={cancelNestedEditor}>Cancel</button>
-              <button className="btn primary" onClick={() => {
-                try {
-                  const parsed = tryParseJsonString(nestedText) ?? JSON.parse(nestedText);
-                  setData(parsed);
-                  setNestedKey(null);
-                  setNestedText("");
-                } catch (err) {
-                  alert("Invalid JSON: " + (err?.message || err));
-                }
-              }}>Save</button>
+              <button className="btn primary" onClick={saveNestedEditor}>Save</button>
             </div>
           </div>
         )}
 
         <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button className="btn" onClick={onCancel}>Cancel</button>
-          <button className="btn primary" onClick={() => onSave(data)}>Save</button>
+          <button className="btn primary" onClick={handleTopSave}>Save</button>
         </div>
       </div>
     );
   }
 
-  // If primitive string / number, show a text area
+  // If primitive string / number
   if (typeof data !== "object" || data === null) {
     const textVal = data == null ? "" : String(data);
     return (
@@ -211,21 +327,23 @@ function InlineEditSection({ value, onSave, onCancel }) {
     );
   }
 
-  // Otherwise it's an object — show key/value rows
+  // Object: show key/value editor with toggles for yes/no/boolean and nested edit for complex
+  const entries = Object.entries(data);
+
   return (
     <div style={{ padding: "12px", background: "#fafafa", borderRadius: 6 }}>
-      {Object.entries(data).map(([key, val]) => {
+      {entries.map(([key, val]) => {
         const isBool = typeof val === "boolean" || (typeof val === "string" && /^(yes|no)$/i.test(val));
         const isComplex = typeof val === "object" && val !== null;
-        const displayValue = isComplex ? (Array.isArray(val) ? `${val.length} item(s)` : "Object") : String(val ?? "");
+        // For primitive display we keep raw (but convert unknown placeholders to TBC-Client)
+        const displayValue = isComplex ? (Array.isArray(val) ? `${val.length} item(s)` : "Object") : String(normalizeUnknownForDisplay(val));
 
         return (
           <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" }}>
             <div style={{ width: "40%", fontWeight: 600 }}>{key}</div>
 
             <div style={{ width: "58%", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-              {nestedKey === key ? (
-                // inline nested editor for this key
+              {editingNested && editingNested.type === "key" && editingNested.key === key ? (
                 <div style={{ width: "100%" }}>
                   <textarea
                     rows={8}
@@ -239,29 +357,26 @@ function InlineEditSection({ value, onSave, onCancel }) {
                   </div>
                 </div>
               ) : isBool ? (
-                // show toggle
                 <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
                   <input
                     type="checkbox"
                     checked={typeof val === "boolean" ? val : /^yes$/i.test(String(val))}
-                    onChange={() => handleBoolToggle(key)}
+                    onChange={() => toggleBoolField(key)}
                   />
                   <span style={{ minWidth: 120, textAlign: "left" }}>{typeof val === "boolean" ? (val ? "On" : "Off") : String(val)}</span>
                 </label>
               ) : isComplex ? (
-                // preview + "Edit JSON" for complex types
                 <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "flex-end" }}>
                   <div style={{ fontSize: 13, color: "#444", padding: "6px 8px", background: "#fff", border: "1px solid #e6e6e6", borderRadius: 4, minWidth: 180, textAlign: "right" }}>
                     {displayValue}
                   </div>
-                  <button className="btn" onClick={() => openNestedEditor(key)}>Edit JSON</button>
+                  <button className="btn" onClick={() => openNestedEditorForKey(key)}>Edit JSON</button>
                 </div>
               ) : (
-                // primitive text input
                 <input
                   type="text"
                   value={displayValue}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  onChange={(e) => updateField(key, e.target.value)}
                   style={{ width: "100%", padding: "6px 8px", borderRadius: 4, border: "1px solid #ccc" }}
                 />
               )}
@@ -433,8 +548,9 @@ export default function Dashboard() {
     if (sectionKey === "Schema") return;
     // Try to parse if the value is a JSON-like string so we present a structured editor
     const parsed = tryParseJsonString(value);
+    const initial = parsed !== null ? deepClone(parsed) : deepClone(value);
     setEditingKey(sectionKey);
-    setEditingInitial(parsed !== null ? deepClone(parsed) : deepClone(value));
+    setEditingInitial(initial);
   }
 
   function handleSaveEditing(sectionKey, updated) {
@@ -446,11 +562,58 @@ export default function Dashboard() {
     setEditingInitial(null);
   }
 
+  // Render helpers
+  function renderArrayOfObjects(arr, keyName) {
+    // Render list of KeyValuePanel items for readability
+    return (
+      <div style={{ display: "grid", gap: 12 }}>
+        {arr.map((item, i) => (
+          <div key={i} style={{ padding: 8, border: "1px solid #f0f0f0", background: "#fff", borderRadius: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+              <div style={{ fontWeight: 600 }}>Item {i + 1}</div>
+              <div>
+                {/* inline edit triggers will open the section-level editor which replaces section content */}
+                <button className="btn small" onClick={() => handleEditSection(`${keyName}::${i}`, item)}>Edit</button>
+              </div>
+            </div>
+            <KeyValuePanel obj={transformObjectForDisplay(item, keyName)} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   function renderSection(value, keyName) {
     // if a string contains JSON, render the parsed object for display
     if (typeof value === "string") {
       const parsed = tryParseJsonString(value);
       if (parsed !== null) return renderSection(parsed, keyName);
+    }
+
+    // If editing a specially-addressed array item (keyName::index), handle it as full object editor
+    if (editingKey && editingKey.startsWith(`${keyName}::`)) {
+      // we opened edit for an array item — editingInitial holds the item
+      return (
+        <InlineEditSection
+          value={editingInitial}
+          onSave={(updated) => {
+            // update the parent array in protocol
+            const next = deepClone(protocol || {});
+            const [parentKey, idxStr] = editingKey.split("::");
+            const idx = Number(idxStr);
+            if (!Array.isArray(next[parentKey])) next[parentKey] = [];
+            next[parentKey][idx] = updated;
+            persistProtocol(next);
+            setEditingKey(null);
+            setEditingInitial(null);
+          }}
+          onCancel={() => {
+            setEditingKey(null);
+            setEditingInitial(null);
+          }}
+          sectionKey={keyName}
+        />
+      );
     }
 
     if (editingKey === keyName) {
@@ -463,21 +626,27 @@ export default function Dashboard() {
             setEditingKey(null);
             setEditingInitial(null);
           }}
+          sectionKey={keyName}
         />
       );
     }
 
     if (Array.isArray(value)) {
-      // If array of objects, show table; otherwise a readable list
-      if (value.length > 0 && value.every((el) => typeof el === "object" && el !== null && !Array.isArray(el))) {
-        return <TablePanel rows={value} columns={columnsForKey(keyName)} />;
+      // If array of objects, render per-item KeyValuePanel for readability
+      if (value.length > 0 && value.every((el) => typeof el === "object" && el !== null)) {
+        return renderArrayOfObjects(value, keyName);
       }
-      return <div>{value.map((v, i) => <span key={i} style={{ marginRight: 8 }}>{String(v)}</span>)}</div>;
+      // otherwise show a readable inline list for primitives
+      return <div>{value.map((v, i) => <span key={i} style={{ marginRight: 8 }}>{String(normalizeUnknownForDisplay(v))}</span>)}</div>;
     }
+
     if (value && typeof value === "object") {
-      return <KeyValuePanel obj={value} />;
+      // transform for display: replace ? with TBC-Client, and apply ordering for General
+      const displayObj = transformObjectForDisplay(value, keyName);
+      return <KeyValuePanel obj={displayObj} />;
     }
-    return <div>{String(value)}</div>;
+
+    return <div>{String(normalizeUnknownForDisplay(value))}</div>;
   }
 
   const stats = protocol ? countFields(protocol) : { total: 0, filled: 0 };
