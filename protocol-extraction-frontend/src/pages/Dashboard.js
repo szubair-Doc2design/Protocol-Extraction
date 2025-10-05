@@ -1,3 +1,4 @@
+// src/pages/Dashboard.js
 import React, { useState, useRef, useEffect } from "react";
 import Panel from "../components/Panel";
 import TablePanel from "../components/TablePanel";
@@ -8,24 +9,53 @@ import { useNavigate } from "react-router-dom";
 import "../styles.css";
 
 const SESSION_KEY = "protocolDataSession";
+// Point this to your backend
 const API_BASE = "https://protocol-extraction.onrender.com";
 
+/** More robust JSON extractor:
+ *  - strips triple-backtick fences
+ *  - strips leading "json", "json:" etc.
+ *  - attempts full-string parse first, then tries to extract {...} or [...]
+ */
 function tryParseJsonString(val) {
   if (typeof val !== "string") return null;
   let s = val.trim();
   if (!s) return null;
-  if (s.startsWith("```")) {
-    s = s.replace(/^```[\s\S]*?\n?/, "");
-    s = s.replace(/\n?```$/, "");
+
+  // strip triple-backtick fenced blocks (``` or ```json)
+  if (/^```/.test(s)) {
+    s = s.replace(/^```[\s\S]*?\n?/, ""); // remove opening fence + optional language
+    s = s.replace(/\n?```$/, ""); // remove trailing fence
     s = s.trim();
   }
+
+  // strip leading "json", "json:" or "JSON -"
+  s = s.replace(/^\s*(?:json|JSON)\s*[:\-]?\s*/i, "").trim();
+
+  // try full parse
   try {
     return JSON.parse(s);
-  } catch {
+  } catch (e) {
+    // fallback: find first { or [ and last matching } or ] and try that substring
+    const startIdx = s.search(/[\{\[]/);
+    if (startIdx !== -1) {
+      const lastCurly = s.lastIndexOf("}");
+      const lastSquare = s.lastIndexOf("]");
+      const endIdx = Math.max(lastCurly, lastSquare);
+      if (endIdx > startIdx) {
+        const candidate = s.slice(startIdx, endIdx + 1);
+        try {
+          return JSON.parse(candidate);
+        } catch (err) {
+          return null;
+        }
+      }
+    }
     return null;
   }
 }
 
+/** Recursively normalize embedded JSON strings */
 function normalizeProtocolData(obj) {
   if (Array.isArray(obj)) return obj.map(normalizeProtocolData);
   if (obj && typeof obj === "object") {
@@ -43,6 +73,7 @@ function normalizeProtocolData(obj) {
   return obj;
 }
 
+/** Force columns for Visit Schedule–like keys */
 function columnsForKey(key) {
   const k = (key || "").toLowerCase().replace(/\s+/g, "");
   if (
@@ -54,121 +85,194 @@ function columnsForKey(key) {
   return null;
 }
 
-// Inline editable section
+/**
+ * Inline editor used for section-level editing.
+ * - Shows editable key/value rows for top-level objects
+ * - boolean / Yes/No appear as toggles
+ * - nested objects/arrays show a small preview and an "Edit JSON" button that opens an inline textarea for that field
+ * - arrays of objects can be edited via the nested editor
+ */
 function InlineEditSection({ value, onSave, onCancel }) {
-  const [data, setData] = useState(() =>
-    typeof value === "string" ? value : deepClone(value)
-  );
+  // If `value` is a JSON-looking string, parse it so the UI is object-based
+  const initialParsed = tryParseJsonString(value);
+  const initial = initialParsed !== null ? deepClone(initialParsed) : (typeof value === "object" && value !== null ? deepClone(value) : value);
 
-  const handleInputChange = (key, val) => {
-    setData((prev) => ({ ...prev, [key]: val }));
-  };
+  const [data, setData] = useState(initial);
+  const [nestedKey, setNestedKey] = useState(null);
+  const [nestedText, setNestedText] = useState("");
 
-  const handleBoolToggle = (key) => {
-    setData((prev) => ({
-      ...prev,
-      [key]:
-        typeof prev[key] === "boolean"
-          ? !prev[key]
-          : /^yes$/i.test(String(prev[key]))
-          ? "No"
-          : "Yes",
-    }));
-  };
+  // Open nested JSON editor for key
+  function openNestedEditor(key) {
+    setNestedKey(key);
+    const payload = data[key];
+    setNestedText(JSON.stringify(payload, null, 2));
+  }
 
-  const handleSave = () => {
+  function saveNestedEditor() {
+    try {
+      // attempt parse tolerant
+      const parsed = tryParseJsonString(nestedText) ?? JSON.parse(nestedText);
+      setData((prev) => ({ ...prev, [nestedKey]: parsed }));
+      setNestedKey(null);
+      setNestedText("");
+    } catch (err) {
+      alert("Invalid JSON: " + (err?.message || err));
+    }
+  }
+
+  function cancelNestedEditor() {
+    setNestedKey(null);
+    setNestedText("");
+  }
+
+  function handleInputChange(key, raw) {
+    // keep as string; preserve original if it was a number? keeping string is safe for now
+    setData((prev) => ({ ...prev, [key]: raw }));
+  }
+
+  function handleBoolToggle(key) {
+    const cur = data[key];
+    if (typeof cur === "boolean") {
+      setData((prev) => ({ ...prev, [key]: !cur }));
+    } else if (typeof cur === "string" && /^(yes|no)$/i.test(cur)) {
+      const next = /^yes$/i.test(cur) ? "No" : "Yes";
+      setData((prev) => ({ ...prev, [key]: next }));
+    } else {
+      // fallback: set boolean toggle based on truthiness
+      setData((prev) => ({ ...prev, [key]: !prev[key] }));
+    }
+  }
+
+  function handleTopSave() {
     onSave(data);
-  };
+  }
 
-  // Render nicely formatted object
-  if (typeof data === "object" && !Array.isArray(data)) {
+  // If the entire section is an array, allow full-array edit inline
+  if (Array.isArray(data)) {
     return (
-      <div style={{ padding: "12px", background: "#fafafa", borderRadius: 6 }}>
-        {Object.entries(data).map(([key, val]) => {
-          const isBool =
-            typeof val === "boolean" || /^(yes|no)$/i.test(String(val));
-          return (
-            <div
-              key={key}
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "6px 0",
-                borderBottom: "1px solid #eee",
-              }}
-            >
-              <div style={{ fontWeight: 500 }}>{key}</div>
-              {isBool ? (
-                <label className="switch">
-                  <input
-                    type="checkbox"
-                    checked={
-                      typeof val === "boolean"
-                        ? val
-                        : /^yes$/i.test(String(val))
-                    }
-                    onChange={() => handleBoolToggle(key)}
-                  />
-                  <span className="slider round"></span>
-                </label>
-              ) : (
-                <input
-                  type="text"
-                  value={val}
-                  onChange={(e) => handleInputChange(key, e.target.value)}
-                  style={{
-                    width: "50%",
-                    padding: "4px 6px",
-                    borderRadius: 4,
-                    border: "1px solid #ccc",
-                  }}
-                />
-              )}
+      <div style={{ padding: 12, background: "#fafafa", borderRadius: 6 }}>
+        <div style={{ marginBottom: 10 }}>
+          <strong>Array editor ({data.length} items)</strong>
+        </div>
+        <div style={{ marginBottom: 8 }}>
+          <button className="btn" onClick={() => { setNestedKey("__array__"); setNestedText(JSON.stringify(data, null, 2)); }}>
+            Edit JSON
+          </button>
+        </div>
+
+        {nestedKey === "__array__" && (
+          <div style={{ marginTop: 8 }}>
+            <textarea
+              rows={12}
+              value={nestedText}
+              onChange={(e) => setNestedText(e.target.value)}
+              style={{ width: "100%", fontFamily: "monospace", fontSize: 13, padding: 8 }}
+            />
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+              <button className="btn" onClick={cancelNestedEditor}>Cancel</button>
+              <button className="btn primary" onClick={() => {
+                try {
+                  const parsed = tryParseJsonString(nestedText) ?? JSON.parse(nestedText);
+                  setData(parsed);
+                  setNestedKey(null);
+                  setNestedText("");
+                } catch (err) {
+                  alert("Invalid JSON: " + (err?.message || err));
+                }
+              }}>Save</button>
             </div>
-          );
-        })}
-        <div
-          style={{
-            marginTop: 10,
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: 8,
-          }}
-        >
-          <button className="btn" onClick={onCancel}>
-            Cancel
-          </button>
-          <button className="btn primary" onClick={handleSave}>
-            Save
-          </button>
+          </div>
+        )}
+
+        <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={() => onSave(data)}>Save</button>
         </div>
       </div>
     );
   }
 
+  // If primitive string / number, show a text area
+  if (typeof data !== "object" || data === null) {
+    const textVal = data == null ? "" : String(data);
+    return (
+      <div style={{ padding: 12, background: "#fafafa", borderRadius: 6 }}>
+        <textarea
+          rows={8}
+          value={textVal}
+          onChange={(e) => setData(e.target.value)}
+          style={{ width: "100%", fontFamily: "monospace", fontSize: 13, padding: 8 }}
+        />
+        <div style={{ marginTop: 10, display: "flex", gap: 8, justifyContent: "flex-end" }}>
+          <button className="btn" onClick={onCancel}>Cancel</button>
+          <button className="btn primary" onClick={() => onSave(data)}>Save</button>
+        </div>
+      </div>
+    );
+  }
+
+  // Otherwise it's an object — show key/value rows
   return (
-    <div style={{ marginTop: 6 }}>
-      <textarea
-        value={data}
-        onChange={(e) => setData(e.target.value)}
-        rows={8}
-        style={{ width: "100%", fontFamily: "monospace", fontSize: 13 }}
-      />
-      <div
-        style={{
-          marginTop: 10,
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 8,
-        }}
-      >
-        <button className="btn" onClick={onCancel}>
-          Cancel
-        </button>
-        <button className="btn primary" onClick={handleSave}>
-          Save
-        </button>
+    <div style={{ padding: "12px", background: "#fafafa", borderRadius: 6 }}>
+      {Object.entries(data).map(([key, val]) => {
+        const isBool = typeof val === "boolean" || (typeof val === "string" && /^(yes|no)$/i.test(val));
+        const isComplex = typeof val === "object" && val !== null;
+        const displayValue = isComplex ? (Array.isArray(val) ? `${val.length} item(s)` : "Object") : String(val ?? "");
+
+        return (
+          <div key={key} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #eee" }}>
+            <div style={{ width: "40%", fontWeight: 600 }}>{key}</div>
+
+            <div style={{ width: "58%", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
+              {nestedKey === key ? (
+                // inline nested editor for this key
+                <div style={{ width: "100%" }}>
+                  <textarea
+                    rows={8}
+                    value={nestedText}
+                    onChange={(e) => setNestedText(e.target.value)}
+                    style={{ width: "100%", fontFamily: "monospace", fontSize: 13, padding: 8 }}
+                  />
+                  <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
+                    <button className="btn" onClick={cancelNestedEditor}>Cancel</button>
+                    <button className="btn primary" onClick={saveNestedEditor}>Save</button>
+                  </div>
+                </div>
+              ) : isBool ? (
+                // show toggle
+                <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={typeof val === "boolean" ? val : /^yes$/i.test(String(val))}
+                    onChange={() => handleBoolToggle(key)}
+                  />
+                  <span style={{ minWidth: 120, textAlign: "left" }}>{typeof val === "boolean" ? (val ? "On" : "Off") : String(val)}</span>
+                </label>
+              ) : isComplex ? (
+                // preview + "Edit JSON" for complex types
+                <div style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", justifyContent: "flex-end" }}>
+                  <div style={{ fontSize: 13, color: "#444", padding: "6px 8px", background: "#fff", border: "1px solid #e6e6e6", borderRadius: 4, minWidth: 180, textAlign: "right" }}>
+                    {displayValue}
+                  </div>
+                  <button className="btn" onClick={() => openNestedEditor(key)}>Edit JSON</button>
+                </div>
+              ) : (
+                // primitive text input
+                <input
+                  type="text"
+                  value={displayValue}
+                  onChange={(e) => handleInputChange(key, e.target.value)}
+                  style={{ width: "100%", padding: "6px 8px", borderRadius: 4, border: "1px solid #ccc" }}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end", gap: 8 }}>
+        <button className="btn" onClick={onCancel}>Cancel</button>
+        <button className="btn primary" onClick={handleTopSave}>Save</button>
       </div>
     </div>
   );
@@ -272,6 +376,7 @@ export default function Dashboard() {
 
   function handleFileSelect(e) {
     handleFileLoad(e.target.files?.[0]);
+    // clear the input so same file can be reselected later
     e.target.value = "";
   }
 
@@ -305,6 +410,7 @@ export default function Dashboard() {
   }
 
   function clearJson() {
+    // Reset to upload step
     setProtocol(null);
     setPanelsOpen({});
     setEditingKey(null);
@@ -312,22 +418,28 @@ export default function Dashboard() {
     setSuccessMsg("");
     setBuiltOn("");
     sessionStorage.removeItem(SESSION_KEY);
+    // Post an empty payload to backend to clear server copy (keeps behavior)
     fetch(`${API_BASE}/api/protocol`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({}),
       mode: "cors",
-    }).catch(() => {});
+    }).catch(() => {
+      // ignore
+    });
   }
 
   function handleEditSection(sectionKey, value) {
     if (sectionKey === "Schema") return;
+    // Try to parse if the value is a JSON-like string so we present a structured editor
+    const parsed = tryParseJsonString(value);
     setEditingKey(sectionKey);
-    setEditingInitial(deepClone(value));
+    setEditingInitial(parsed !== null ? deepClone(parsed) : deepClone(value));
   }
 
   function handleSaveEditing(sectionKey, updated) {
     const next = deepClone(protocol || {});
+    // Ensure we do not lose data for other sections
     next[sectionKey] = updated;
     persistProtocol(next);
     setEditingKey(null);
@@ -335,7 +447,14 @@ export default function Dashboard() {
   }
 
   function renderSection(value, keyName) {
+    // if a string contains JSON, render the parsed object for display
+    if (typeof value === "string") {
+      const parsed = tryParseJsonString(value);
+      if (parsed !== null) return renderSection(parsed, keyName);
+    }
+
     if (editingKey === keyName) {
+      // show inline editor inside the same section
       return (
         <InlineEditSection
           value={editingInitial}
@@ -349,7 +468,11 @@ export default function Dashboard() {
     }
 
     if (Array.isArray(value)) {
-      return <TablePanel rows={value} columns={columnsForKey(keyName)} />;
+      // If array of objects, show table; otherwise a readable list
+      if (value.length > 0 && value.every((el) => typeof el === "object" && el !== null && !Array.isArray(el))) {
+        return <TablePanel rows={value} columns={columnsForKey(keyName)} />;
+      }
+      return <div>{value.map((v, i) => <span key={i} style={{ marginRight: 8 }}>{String(v)}</span>)}</div>;
     }
     if (value && typeof value === "object") {
       return <KeyValuePanel obj={value} />;
@@ -381,6 +504,7 @@ export default function Dashboard() {
 
   return (
     <div>
+      {/* Header */}
       <div
         style={{
           background: "linear-gradient(to right, #1a3c6e, #2196f3)",
